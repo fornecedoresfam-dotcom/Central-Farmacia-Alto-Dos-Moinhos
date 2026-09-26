@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="description" content="Central Operacional — orquestração de serviços internos para farmácias.">
+<meta name="theme-color" content="#1f543e">
+<title>Central Operacional</title>
+<link rel="icon" href="data:,">
+<link rel="preload" href="assets/styles.css" as="style">
+<link rel="modulepreload" href="src/app.js">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<!-- ================= ENTRADA (login / criar conta por farmácia) ================= -->
+<div class="login-gate" id="loginGate">
+  <div class="login-card">
+    <h2>Central Operacional</h2>
+    <p class="login-sub" id="loginSub" data-i18n="login.subtitle">Inicie sessão com a conta da sua farmácia.</p>
+    <div class="login-tabs" id="loginTabs">
+      <button type="button" class="login-tab active" data-tab="login" data-i18n="login.tab_entrar">Entrar</button>
+      <button type="button" class="login-tab" data-tab="signup" data-i18n="login.tab_criar">Criar conta</button>
+    </div>
+    <form id="loginForm" class="login-form" autocomplete="on">
+      <label for="loginEmail" data-i18n="common.email">Email</label>
+      <input type="email" id="loginEmail" name="username" required autocomplete="username">
+      <label for="loginPassword" data-i18n="login.password_label">Palavra-passe</label>
+      <input type="password" id="loginPassword" name="password" required autocomplete="current-password">
+      <button type="submit" class="btn-primary" id="loginSubmit" data-i18n="login.tab_entrar">Entrar</button>
+    </form>
+    <form id="signupForm" class="login-form" autocomplete="on" hidden>
+      <label for="signupNomeFarmacia" data-i18n="login.nome_farmacia">Nome da farmácia</label>
+      <input type="text" id="signupNomeFarmacia" required>
+      <label for="signupEmail" data-i18n="common.email">Email</label>
+      <input type="email" id="signupEmail" name="username" required autocomplete="username">
+      <label for="signupPassword" data-i18n="login.password_min">Palavra-passe (mín. 8 caracteres)</label>
+      <input type="password" id="signupPassword" name="new-password" required autocomplete="new-password" minlength="8">
+      <label for="signupIdioma" data-i18n="common.idioma">Idioma</label>
+      <select id="signupIdioma"></select>
+      <button type="submit" class="btn-primary" id="signupSubmit" data-i18n="login.tab_criar">Criar conta</button>
+    </form>
+    <p class="login-status" id="loginStatusText"></p>
+  </div>
+</div>
+
+<div class="app" id="appRoot" hidden>
+  <div class="nav-backdrop" id="navBackdrop"></div>
+  <aside class="sidebar" id="sidebarContainer"><!-- preenchido por src/ui/sidebar.js --></aside>
+
+  <main class="main-wrap">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Módulos e categorias" data-i18n-title="topbar.sidebar_toggle_title"><span class="icon" id="sidebarToggleIcon"></span> <span data-i18n="topbar.modulos">Módulos</span></button>
+        <div class="crumb" id="crumbContainer"></div>
+      </div>
+      <div class="topbar-right">
+        <div class="search-shell">
+          <span class="icon" id="topbarSearchIcon"></span>
+          <input type="text" id="searchInput" placeholder="Pesquisar serviços..." data-i18n-placeholder="topbar.pesquisar_placeholder">
+        </div>
+        <select id="selectSort" class="select-sort">
+          <option value="ordem" data-i18n="sort.ordem">Ordem manual</option>
+          <option value="nome" data-i18n="sort.nome">Nome A–Z</option>
+          <option value="uso" data-i18n="sort.uso">Mais usados</option>
+          <option value="recente" data-i18n="sort.recente">Acedidos recentemente</option>
+          <option value="criado" data-i18n="sort.criado">Mais recentes</option>
+        </select>
+        <div class="view-toggle" id="viewToggle">
+          <button data-view="grid" class="active" title="Vista em grelha" data-i18n-title="view.grid_title"><span class="icon" id="viewGridIcon"></span></button>
+          <button data-view="list" title="Vista em lista" data-i18n-title="view.list_title"><span class="icon" id="viewListIcon"></span></button>
+        </div>
+        <button id="btnRefresh" class="btn-icon-round" title="Atualizar" data-i18n-title="common.atualizar"><span class="icon" id="refreshIcon"></span></button>
+        <button id="btnNovoServico" class="btn-config primary"><span class="icon" id="plusIcon"></span> <span data-i18n="topbar.novo_servico">Novo serviço</span></button>
+        <button id="btnAbrirConfig" class="btn-config"><span class="icon" id="slidersIcon"></span> <span data-i18n="common.configuracoes">Configurações</span></button>
+        <!-- Ponto 54 — só aparece (via app.js) para a(s) conta(s) listada(s) em SUPER_ADMIN_EMAILS -->
+        <button id="btnPainelAdmin" class="btn-config" hidden title="Painel Developer/Super-Admin — só visível para contas de administração"><span class="icon" id="painelAdminIcon"></span> <span>Painel Admin</span></button>
+        <span class="farmacia-label" id="farmaciaLabel" title="Farmácia com sessão iniciada" data-i18n-title="topbar.farmacia_title"></span>
+        <button id="btnLogout" class="btn-icon-round" title="Terminar sessão" data-i18n-title="topbar.terminar_sessao"><span class="icon" id="logoutIcon"></span></button>
+      </div>
+    </div>
+
+    <div id="contentRoot"><div class="grid-categorias"><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div></div></div>
+
+    <footer data-i18n="footer.hint">
+      Clique num serviço para abrir numa nova aba • Arraste para reordenar (ordem manual) • <span class="kbd-hint">Ctrl K</span> paleta de comandos
+    </footer>
+  </main>
+</div>
+
+<!-- ================= MODAL: CONFIGURAÇÕES ================= -->
+<div id="modalConfig" class="modal-overlay">
+  <div class="modal-container">
+    <div class="modal-head">
+      <button class="modal-close-x" id="btnFecharConfigX"><span class="icon" id="closeIcon1"></span></button>
+      <h2><span class="icon" id="slidersIcon2"></span> <span data-i18n="config.titulo">Configurações da Central</span></h2>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="geral" data-i18n="config.tab_geral">Geral</button>
+        <button class="modal-tab" data-tab="servicos" data-i18n="config.tab_servicos">Serviços</button>
+        <button class="modal-tab" data-tab="categorias" data-i18n="config.tab_categorias">Categorias</button>
+        <button class="modal-tab" data-tab="dados" data-i18n="config.tab_dados">Dados &amp; Estatísticas</button>
+        <button class="modal-tab" data-tab="poupanca" data-i18n="config.tab_poupanca">Poupança &amp; ROI</button>
+        <button class="modal-tab" data-tab="manutencao" data-i18n="config.tab_manutencao">Auto-manutenção</button>
+      </div>
+    </div>
+    <div class="modal-body">
+
+      <!-- TAB: GERAL -->
+      <div class="tab-panel active" id="tab-geral">
+        <div class="config-section">
+          <h3><span class="icon" id="imgIcon1"></span> <span data-i18n="config.geral.logo_titulo">Logótipo da Farmácia</span></h3>
+          <div class="logo-preview">
+            <div id="modalLogoPreview">
+              <div id="modalLogoPlaceholder" style="width:64px;height:64px;background:var(--surface-chip);display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--primary);"><span class="icon" id="capsuleIcon" style="font-size:1.4rem;"></span></div>
+              <img id="modalLogoImg" style="width:64px;height:64px;border-radius:50%;display:none;object-fit:cover;border:2px solid var(--border-strong);">
+            </div>
+            <label class="btn-upload" for="modalLogoUpload"><span class="icon" id="uploadIcon1"></span> <span data-i18n="config.geral.alterar_logo">Alterar logótipo</span></label>
+            <input type="file" id="modalLogoUpload" accept="image/*" style="display:none;">
+          </div>
+        </div>
+        <div class="config-section">
+          <h3><span class="icon" id="tagIcon1"></span> <span data-i18n="config.geral.identificacao_titulo">Identificação</span></h3>
+          <div class="form-row">
+            <div class="form-group"><label data-i18n="login.nome_farmacia">Nome da farmácia</label><input type="text" id="nomeFarmaciaInput" placeholder="Ex: Farmácia Central" data-i18n-placeholder="config.geral.nome_placeholder"></div>
+          </div>
+          <p style="font-size:.72rem;color:var(--text-soft);margin:-4px 0 12px;" data-i18n="config.geral.nome_logo_hint">
+            O nome e o logótipo definidos aqui são a fonte única de verdade: aparecem em toda a Central — incluindo todos os módulos e ferramentas.
+          </p>
+          <div class="form-row">
+            <div class="form-group"><label data-i18n="common.morada">Morada</label><input type="text" id="moradaInput" placeholder="Ex: Rua Principal, 123, 1000-001 Lisboa" data-i18n-placeholder="config.geral.morada_placeholder"></div>
+            <div class="form-group"><label data-i18n="common.cidade">Cidade</label><input type="text" id="cidadeInput" placeholder="Ex: Lisboa" data-i18n-placeholder="config.geral.cidade_placeholder"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label data-i18n="config.geral.email_contacto">Email de contacto</label><input type="text" id="emailContactoInput" placeholder="Ex: geral@farmacia.pt" data-i18n-placeholder="config.geral.email_placeholder"></div>
+            <div class="form-group"><label data-i18n="config.geral.telefone_contacto">Telefone de contacto</label><input type="text" id="telefoneContactoInput" placeholder="Ex: 21 000 00 00" data-i18n-placeholder="config.geral.telefone_placeholder"></div>
+          </div>
+          <p style="font-size:.72rem;color:var(--text-soft);margin:-4px 0 0;" data-i18n="config.geral.contactos_hint">
+            Usados para pré-preencher documentos e etiquetas gerados pelas ferramentas (contratos, declarações, rótulos...) — a cidade é usada, por exemplo, nas declarações que referem onde os medicamentos foram adquiridos. Continuam editáveis em cada documento individual, se precisar de os ajustar num caso concreto.
+          </p>
+        </div>
+        <div class="config-section">
+          <h3><span class="icon" id="idiomaIcon1"></span> <span data-i18n="config.geral.idioma_titulo">Idioma</span></h3>
+          <div class="form-row">
+            <div class="form-group"><label data-i18n="common.idioma">Idioma</label><select id="idiomaSelect"></select></div>
+          </div>
+          <p style="font-size:.72rem;color:var(--text-soft);margin:-4px 0 0;" data-i18n="config.geral.idioma_hint">
+            Escolha o idioma da Central. Pode ser alterado a qualquer momento — atualiza toda a terminologia da aplicação de imediato.
+          </p>
+        </div>
+      </div>
+
+      <!-- TAB: SERVIÇOS -->
+      <div class="tab-panel" id="tab-servicos">
+        <div class="toolbar-row">
+          <div class="mini-search"><span class="icon" id="searchIcon2"></span><input type="text" id="gestaoSearchInput" placeholder="Filtrar serviços..." data-i18n-placeholder="config.servicos.filtrar_placeholder"></div>
+          <button id="btnMostrarFormAdd" class="btn-secondary"><span class="icon" id="plusIcon2"></span> <span data-i18n="config.servicos.adicionar">Adicionar serviço</span></button>
+        </div>
+        <div id="servicosListaGestao" class="servicos-lista"></div>
+
+        <div id="formAddServico" style="display:none;" class="form-add">
+          <h4 id="formTitulo" style="margin-bottom:14px;color:var(--primary-dark);" data-i18n="config.servicos.form_titulo_adicionar">Adicionar serviço</h4>
+          <div class="form-row">
+            <div class="form-group"><label data-i18n="config.servicos.nome_label">Nome *</label><input type="text" id="servicoNome" placeholder="Ex: Rastreio Tensão Arterial" data-i18n-placeholder="config.servicos.nome_placeholder"></div>
+            <div class="form-group"><label data-i18n="common.categoria">Categoria</label><select id="servicoCategoria"></select></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:2;"><label data-i18n="config.servicos.descricao_label">Descrição breve</label><input type="text" id="servicoDescricao" placeholder="Ex: Medição e registo de tensão arterial" data-i18n-placeholder="config.servicos.descricao_placeholder"></div>
+            <div class="form-group"><label data-i18n="config.servicos.estado_label">Estado</label>
+              <select id="servicoStatus"><option value="ativo" data-i18n="status.ativo">Ativo</option><option value="manutencao" data-i18n="status.manutencao">Em manutenção</option><option value="arquivado" data-i18n="status.arquivado">Arquivado</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label data-i18n="config.servicos.url_label">URL online</label><input type="text" id="servicoUrl" placeholder="https://..." data-i18n-placeholder="common.url_placeholder"></div>
+            <div class="form-group">
+              <label data-i18n="config.servicos.ou_html">OU carregar HTML</label>
+              <label class="file-label" for="htmlFileInput"><span class="icon" id="htmlIcon"></span> <span data-i18n="config.servicos.escolher_html">Escolher .html</span></label>
+              <input type="file" id="htmlFileInput" accept=".html,.htm" style="display:none;">
+              <div id="htmlFileName" style="font-size:.68rem;color:var(--text-soft);margin-top:4px;"></div>
+            </div>
+            <div class="form-group">
+              <label data-i18n="config.servicos.ou_ficheiro">OU carregar ficheiro (PDF, Word, Excel...)</label>
+              <label class="file-label" for="arquivoFileInput"><span class="icon" id="arquivoIcon"></span> <span data-i18n="config.servicos.escolher_ficheiro">Escolher ficheiro</span></label>
+              <input type="file" id="arquivoFileInput" style="display:none;">
+              <div id="arquivoFileName" style="font-size:.68rem;color:var(--text-soft);margin-top:4px;"></div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label data-i18n="config.servicos.imagem_botao">Imagem do botão</label>
+              <label class="file-label" for="imgFileInput"><span class="icon" id="imgIcon2"></span> <span data-i18n="config.servicos.enviar_imagem">Enviar imagem</span></label>
+              <input type="file" id="imgFileInput" accept="image/*" style="display:none;">
+              <div id="imgFileName" style="font-size:.68rem;color:var(--text-soft);margin-top:4px;"></div>
+            </div>
+            <div class="form-group"><label data-i18n="config.servicos.url_imagem">Ou URL da imagem</label><input type="text" id="imgUrlInput" placeholder="https://...imagem.png" data-i18n-placeholder="config.servicos.url_imagem_placeholder"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:2;">
+              <label data-i18n="config.servicos.etiquetas">Etiquetas (tags)</label>
+              <div class="tags-input-shell" id="tagsShell"><input type="text" id="tagsInput" placeholder="Escrever e Enter..." data-i18n-placeholder="config.servicos.etiquetas_placeholder"></div>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <label class="checkbox-row"><input type="checkbox" id="servicoFavorito"> <span data-i18n="config.servicos.marcar_favorito">Marcar como favorito</span></label>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
+            <button id="btnCancelarForm" class="btn-secondary" data-i18n="common.cancelar">Cancelar</button>
+            <button id="btnSalvarServico" class="btn-primary" data-i18n="common.guardar">Guardar</button>
+          </div>
+          <div id="formFeedback" class="feedback"></div>
+        </div>
+      </div>
+
+      <!-- TAB: CATEGORIAS -->
+      <div class="tab-panel" id="tab-categorias">
+        <div class="config-section">
+          <h3><span class="icon" id="tagIcon2"></span> <span data-i18n="config.categorias.titulo">Categorias e subcategorias</span></h3>
+          <p class="field-hint" style="margin-bottom:14px;" data-i18n="config.categorias.hint">As categorias funcionam como pastas: pode criar subcategorias e definir uma cor ou imagem para cada uma.</p>
+          <div id="categoriasLista"></div>
+          <div class="form-row" style="margin-top:14px;align-items:flex-end;">
+            <div class="form-group"><label data-i18n="config.categorias.nova">Nova categoria</label><input type="text" id="novaCategoriaNome" placeholder="Ex: Vacinação" data-i18n-placeholder="config.categorias.nome_placeholder"></div>
+            <div class="form-group"><label data-i18n="config.categorias.categoria_mae">Categoria-mãe</label><select id="novaCategoriaParent"></select></div>
+            <div class="form-group" style="flex:0 0 56px;"><label data-i18n="common.cor">Cor</label><input type="color" id="novaCategoriaCor" value="#2b7a4b" style="width:100%;height:38px;border-radius:14px;border:1px solid var(--border-strong);padding:2px;"></div>
+            <div class="form-group" style="flex:0 0 auto;">
+              <label class="file-label" for="novaCategoriaImg" style="white-space:nowrap;"><span class="icon" id="imgIcon3"></span> <span data-i18n="common.imagem">Imagem</span></label>
+              <input type="file" id="novaCategoriaImg" accept="image/*" style="display:none;">
+            </div>
+            <div class="form-group" style="flex:0 0 auto;"><button id="btnAddCategoria" class="btn-primary" data-i18n="common.adicionar">Adicionar</button></div>
+          </div>
+          <div id="novaCategoriaImgNome" style="font-size:.68rem;color:var(--text-soft);margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <!-- TAB: DADOS -->
+      <div class="tab-panel" id="tab-dados">
+        <div class="config-section">
+          <h3><span class="icon" id="chartIcon"></span> <span data-i18n="config.dados.mais_utilizados">Serviços mais utilizados</span></h3>
+          <div id="usageStatsList"></div>
+        </div>
+        <div class="config-section">
+          <h3><span class="icon" id="boxesIcon"></span> <span data-i18n="config.dados.gestao_titulo">Gestão de dados</span></h3>
+          <div class="data-actions-grid">
+            <div class="data-action-card">
+              <span class="icon" id="downloadIcon"></span>
+              <h4 data-i18n="config.dados.exportar_titulo">Exportar cópia de segurança</h4>
+              <p data-i18n="config.dados.exportar_desc">Descarrega um ficheiro .json com todos os serviços, categorias e configurações.</p>
+              <button id="btnExportar" class="btn-secondary"><span class="icon" id="downloadIcon2"></span> <span data-i18n="common.exportar">Exportar</span></button>
+            </div>
+            <div class="data-action-card">
+              <span class="icon" id="uploadIcon3"></span>
+              <h4 data-i18n="config.dados.importar_titulo">Importar cópia de segurança</h4>
+              <p data-i18n="config.dados.importar_desc">Restaura dados a partir de um ficheiro .json exportado anteriormente.</p>
+              <label class="btn-secondary" for="inputImportar" style="display:inline-flex;align-items:center;gap:8px;"><span class="icon" id="uploadIcon4"></span> <span data-i18n="common.importar">Importar</span></label>
+              <input type="file" id="inputImportar" accept="application/json" style="display:none;">
+            </div>
+            <div class="data-action-card">
+              <span class="icon" id="alertIcon"></span>
+              <h4 data-i18n="config.dados.repor_titulo">Repor tudo</h4>
+              <p data-i18n="config.dados.repor_desc">Remove todos os serviços, categorias e o logótipo desta central. Ação irreversível.</p>
+              <button id="btnResetTudo" class="btn-danger-outline"><span class="icon" id="trashIcon2"></span> <span data-i18n="common.repor">Repor</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: POUPANÇA & ROI -->
+      <div class="tab-panel" id="tab-poupanca">
+        <div class="config-section">
+          <h3><span class="icon" id="poupancaIcon1"></span> <span data-i18n="config.poupanca.titulo">Poupança & Retorno do Investimento</span></h3>
+          <p style="font-size:.78rem;color:var(--text-soft);margin:-4px 0 16px;max-width:640px;" data-i18n="config.poupanca.intro">
+            Estimativa do tempo e do dinheiro que esta farmácia já poupou ao usar a Central, com base no
+            número de vezes que cada tarefa foi feita em cada módulo, comparado com o tempo estimado de a
+            fazer à mão. As estimativas de tempo por tarefa podem ser ajustadas mais abaixo.
+          </p>
+          <div class="form-row" style="align-items:flex-end;">
+            <div class="form-group" style="max-width:220px;">
+              <label data-i18n="config.poupanca.valor_hora">Valor pago por hora (€)</label>
+              <input type="number" id="poupValorHoraInput" min="0" step="0.01" placeholder="Ex: 12,50" data-i18n-placeholder="config.poupanca.valor_hora_placeholder">
+            </div>
+            <div class="form-group" style="max-width:220px;">
+              <label data-i18n="config.poupanca.periodo_inicio">Período personalizado — início</label>
+              <input type="date" id="poupPeriodoInicio">
+            </div>
+            <div class="form-group" style="max-width:220px;">
+              <label data-i18n="config.poupanca.periodo_fim">Período personalizado — fim</label>
+              <input type="date" id="poupPeriodoFim">
+            </div>
+            <div class="form-group" style="flex:0;">
+              <button id="btnPoupAtualizar" class="btn-secondary" style="white-space:nowrap;"><span class="icon" id="poupancaRefreshIcon"></span> <span data-i18n="common.atualizar">Atualizar</span></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <div id="poupResumoGrid" class="poup-resumo-grid"></div>
+        </div>
+
+        <div class="config-section">
+          <div id="poupCustomResumo" class="poup-custom-card" style="display:none;"></div>
+        </div>
+
+        <div class="config-section">
+          <div class="toolbar-row" style="margin-bottom:10px;">
+            <h3 style="margin:0;"><span class="icon" id="poupPeriodoIcon"></span> <span data-i18n="config.poupanca.periodo_graficos_titulo">Período dos gráficos</span></h3>
+            <div class="poup-chip-group" id="poupChartsPeriodo">
+              <button type="button" class="poup-chip" data-periodo="7" data-i18n="periodo.7">7 dias</button>
+              <button type="button" class="poup-chip active" data-periodo="30" data-i18n="periodo.30">30 dias</button>
+              <button type="button" class="poup-chip" data-periodo="90" data-i18n="periodo.90">90 dias</button>
+              <button type="button" class="poup-chip" data-periodo="365" data-i18n="periodo.365">1 ano</button>
+              <button type="button" class="poup-chip" data-periodo="tudo" data-i18n="periodo.tudo">Desde sempre</button>
+              <button type="button" class="poup-chip" data-periodo="custom" data-i18n="periodo.custom">Período personalizado ↑</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <div class="toolbar-row" style="margin-bottom:10px;">
+            <h3 style="margin:0;"><span class="icon" id="chartIcon2"></span> <span data-i18n="config.poupanca.tempo_poupado_titulo">Tempo poupado ao longo do tempo</span></h3>
+            <div class="poup-chip-group" id="poupChartTendGranularidade">
+              <button type="button" class="poup-chip active" data-gran="dia" data-i18n="gran.dia">Por dia</button>
+              <button type="button" class="poup-chip" data-gran="semana" data-i18n="gran.semana">Por semana</button>
+              <button type="button" class="poup-chip" data-gran="mes" data-i18n="gran.mes">Por mês</button>
+            </div>
+          </div>
+          <div class="poup-chart-box"><canvas id="poupChartTendencia" height="90"></canvas></div>
+        </div>
+
+        <div class="config-section">
+          <div class="poup-cols-2">
+            <div>
+              <div class="toolbar-row" style="margin-bottom:8px;">
+                <h3 style="font-size:.92rem;margin:0;" data-i18n="config.poupanca.por_modulo">Poupança por módulo</h3>
+                <div class="poup-chip-group poup-chip-group-sm" id="poupChartModulosMetrica">
+                  <button type="button" class="poup-chip active" data-metrica="tempo" data-i18n="metrica.tempo">Tempo poupado</button>
+                  <button type="button" class="poup-chip" data-metrica="ocorrencias" data-i18n="metrica.ocorrencias">Nº de vezes</button>
+                </div>
+              </div>
+              <div class="poup-chart-box poup-chart-box-sm"><canvas id="poupChartModulos"></canvas></div>
+            </div>
+            <div>
+              <div class="toolbar-row" style="margin-bottom:8px;">
+                <h3 style="font-size:.92rem;margin:0;" data-i18n="config.poupanca.tarefas_mais">Tarefas mais realizadas</h3>
+                <div class="poup-chip-group poup-chip-group-sm" id="poupChartTarefasMetrica">
+                  <button type="button" class="poup-chip active" data-metrica="ocorrencias" data-i18n="metrica.ocorrencias">Nº de vezes</button>
+                  <button type="button" class="poup-chip" data-metrica="tempo" data-i18n="metrica.tempo">Tempo poupado</button>
+                </div>
+              </div>
+              <div class="poup-chart-box poup-chart-box-sm"><canvas id="poupChartTarefas"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <div class="toolbar-row">
+            <h3 style="margin:0;"><span class="icon" id="boxesIcon2"></span> <span data-i18n="config.poupanca.tabela_titulo">Tarefas rastreadas e estimativas de tempo</span></h3>
+            <button id="btnPoupExportarPdf" class="btn-primary"><span class="icon" id="poupancaPdfIcon"></span> <span data-i18n="config.poupanca.exportar_pdf">Exportar relatório em PDF</span></button>
+          </div>
+          <p style="font-size:.72rem;color:var(--text-soft);margin:6px 0 12px;" data-i18n="config.poupanca.tabela_hint">
+            Pode ajustar aqui as estimativas de tempo manual/Central de cada tarefa (em segundos) — os
+            valores por omissão são conservadores. As alterações aplicam-se a partir de agora, ao
+            período que escolher acima.
+          </p>
+          <div class="poup-table-wrap">
+            <table class="poup-table" id="poupTabelaTarefas">
+              <thead>
+                <tr>
+                  <th data-i18n="tabela.modulo">Módulo</th><th data-i18n="tabela.tarefa">Tarefa</th><th data-i18n="tabela.n_vezes">Nº vezes (período)</th>
+                  <th data-i18n="tabela.tempo_manual">Tempo manual (s)</th><th data-i18n="tabela.tempo_central">Tempo Central (s)</th><th data-i18n="metrica.tempo">Tempo poupado</th>
+                </tr>
+              </thead>
+              <tbody id="poupTabelaTarefasBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: AUTO-MANUTENÇÃO -->
+      <div class="tab-panel" id="tab-manutencao">
+        <div class="config-section">
+          <h3><span class="icon" id="manutIcon1"></span> <span data-i18n="config.manutencao.titulo">Auto-manutenção da Central</span></h3>
+          <p style="font-size:.78rem;color:var(--text-soft);margin:-4px 0 16px;max-width:640px;" data-i18n="config.manutencao.intro">
+            Verificação e reparação da integridade dos dados, cópias de segurança automáticas com
+            restauro, e um resumo do estado/desempenho desta farmácia na Central.
+          </p>
+        </div>
+
+        <div class="config-section">
+          <div class="toolbar-row" style="margin-bottom:10px;">
+            <h3 style="margin:0;"><span class="icon" id="manutIcon2"></span> <span data-i18n="config.manutencao.verificacao_titulo">Verificação de integridade</span></h3>
+            <div style="display:flex;gap:8px;">
+              <button id="btnManutVerificar" class="btn-secondary" data-i18n="config.manutencao.verificar_agora">Verificar agora</button>
+              <button id="btnManutReparar" class="btn-primary" disabled data-i18n="config.manutencao.reparar">Reparar automaticamente</button>
+            </div>
+          </div>
+          <div id="manutIntegridadeResultado"></div>
+        </div>
+
+        <div class="config-section">
+          <div class="toolbar-row" style="margin-bottom:10px;">
+            <h3 style="margin:0;"><span class="icon" id="manutIcon3"></span> <span data-i18n="config.manutencao.backups_titulo">Cópias de segurança</span></h3>
+            <button id="btnManutBackupAgora" class="btn-secondary" data-i18n="config.manutencao.criar_backup">Criar cópia de segurança agora</button>
+          </div>
+          <p style="font-size:.72rem;color:var(--text-soft);margin:0 0 12px;" data-i18n="config.manutencao.backups_hint">
+            A Central cria automaticamente uma cópia de segurança completa uma vez por dia (mantém as
+            últimas 20). Pode também criar uma cópia manual a qualquer momento e restaurar qualquer uma
+            delas.
+          </p>
+          <div id="manutBackupsLista"></div>
+        </div>
+
+        <div class="config-section">
+          <h3><span class="icon" id="manutIcon4"></span> <span data-i18n="config.manutencao.saude_titulo">Saúde &amp; desempenho</span></h3>
+          <div id="manutSaudeGrid" class="poup-resumo-grid"></div>
+        </div>
+      </div>
+
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:0 32px 26px;">
+      <button id="btnFecharConfig" class="btn-secondary" data-i18n="common.fechar">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PALETA DE COMANDOS ================= -->
+<div class="palette-overlay" id="paletteOverlay">
+  <div class="palette-box">
+    <div class="palette-input-row"><span class="icon" id="boltIcon"></span><input type="text" id="paletteInput" placeholder="Pesquisar serviços ou executar uma ação..." data-i18n-placeholder="palette.placeholder"></div>
+    <div class="palette-results" id="paletteResults"></div>
+    <div class="palette-footer"><span><kbd>↑↓</kbd> <span data-i18n="palette.navegar">navegar</span></span><span><kbd>Enter</kbd> <span data-i18n="palette.abrir">abrir</span></span><span><kbd>Esc</kbd> <span data-i18n="palette.fechar">fechar</span></span></div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<!-- Ponto 52 — fallback de arranque (auditoria 20/09, §4.1 "Dependência
+     Rígida de Ficheiros"): se src/app.js (ou um dos seus módulos internos)
+     ou assets/styles.css falharem a carregar/executar, a app antes ficava
+     num ecrã em branco sem qualquer pista do que aconteceu. Este script
+     clássico (não-module) corre de imediato, antes do módulo principal, e
+     mostra um aviso visível + botão de recarregar caso o sinal de "app
+     pronta" não chegue a tempo. -->
+<script>
+  window.__centralAppReady = false;
+  function centralMostrarFalhaArranque() {
+    if (window.__centralAppReady || document.getElementById("falhaArranque")) return;
+    var d = document.createElement("div");
+    d.id = "falhaArranque";
+    d.style.cssText = "position:fixed;inset:0;z-index:99999;background:#1f543e;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-family:sans-serif;padding:24px;";
+    d.innerHTML = "<div><h2 style='margin:0 0 12px;font-size:1.3rem;'>A aplicação não carregou</h2>"
+      + "<p style='margin:0 0 18px;opacity:.9;'>Verifique a ligação à internet e recarregue a página. Se o problema persistir, contacte o suporte.</p>"
+      + "<button type='button' id='falhaArranqueBtn' style='padding:10px 22px;border-radius:8px;border:none;background:#fff;color:#1f543e;font-weight:600;cursor:pointer;'>Recarregar</button></div>";
+    document.body.appendChild(d);
+    document.getElementById("falhaArranqueBtn").addEventListener("click", function () { location.reload(); });
+  }
+  // falhas de carregamento de <script>/<link> (ex.: assets/styles.css ou
+  // src/app.js a dar 404) não fazem "bubble" — só se apanham em captura.
+  window.addEventListener("error", function () { centralMostrarFalhaArranque(); }, true);
+  // exceções não tratadas durante a execução do módulo (ex.: um import
+  // interno de src/app.js em falta) chegam à janela sem captura.
+  window.onerror = function () { centralMostrarFalhaArranque(); };
+  // rede muito lenta ou módulo preso antes de emitir o sinal de "pronto".
+  setTimeout(centralMostrarFalhaArranque, 8000);
+</script>
+<script type="module" src="src/app.js"></script>
+<script type="module">
+  // Ponto 29 — mini-chat da FARMA IA na página inicial (widget autónomo,
+  // ver src/ui/farmaMiniChat.js). Corre à parte da app principal de propósito.
+  import { initFarmaMiniChat } from "./src/ui/farmaMiniChat.js";
+  initFarmaMiniChat();
+</script>
+</body>
+</html>
