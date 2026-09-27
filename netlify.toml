@@ -24,12 +24,23 @@
   to = "/.netlify/functions/asset/:splat"
   status = 200
 
-# Conhecimento partilhado entre farmácias (FARMA IA, ponto 43, Função 4:
+# Conhecimento partilhado entre farmácias (HYGEA IA, ponto 43, Função 4:
 # "aprendizagem multifarma") — nunca dados por farmácia, ver
-# netlify/functions/farma-aprendizagens.js
+# netlify/functions/hygea-aprendizagens.js
+[[redirects]]
+  from = "/api/hygea-aprendizagens"
+  to = "/.netlify/functions/hygea-aprendizagens"
+  status = 200
+
+# Ponto 60 (FARMA -> HYGEA): o caminho antigo continua a responder. Um
+# computador que ainda tenha a versão anterior em cache (service worker) usa
+# este endereço até apanhar o código novo — sem isto, ficava sem acesso ao
+# conhecimento partilhado nesse intervalo. Aponta para a MESMA função: os
+# dados vivem num blob com nome próprio ("central-saas-partilhado"), que não
+# mudou, por isso nada se perdeu com a mudança de nome.
 [[redirects]]
   from = "/api/farma-aprendizagens"
-  to = "/.netlify/functions/farma-aprendizagens"
+  to = "/.netlify/functions/hygea-aprendizagens"
   status = 200
 
 # ---------------------------------------------------------------------------
@@ -74,8 +85,8 @@
   [headers.values]
     Cache-Control = "public, max-age=600, must-revalidate"
 
-# scripts/*.mjs (ex.: dados-treino-farma.mjs) — ponto 43, Função 2: importado
-# dinamicamente pelo BROWSER a partir de src/farmaTreinoLocal.js (treino local
+# scripts/*.mjs (ex.: dados-treino-hygea.mjs) — ponto 43, Função 2: importado
+# dinamicamente pelo BROWSER a partir de src/hygeaTreinoLocal.js (treino local
 # por farmácia). Um `import()` de módulo ES exige sempre um Content-Type
 # JavaScript válido — nunca deixar isto ao critério do tipo MIME por omissão
 # do servidor para uma extensão pouco comum como ".mjs".

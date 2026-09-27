@@ -1,4 +1,11 @@
-# Central Operacional — versão multi-farmácia (SaaS publicável)
+# Central HYGEA — versão multi-farmácia (SaaS publicável)
+
+> **Nota de leitura (ponto 60, 27/09/2026):** o produto chamava-se "Central Operacional" e a IA
+> interna chamava-se "FARMA". Passaram a **Central HYGEA** e **HYGEA**. Os pontos anteriores a 60
+> estão deliberadamente escritos com os nomes da altura — são um registo do que foi decidido quando
+> foi decidido, e reescrevê-los tornaria este documento menos fiável, não mais claro. Ao ler
+> "FARMA" num ponto antigo, leia "HYGEA"; o ponto 60 explica a mudança e a migração de dados que a
+> acompanhou.
 
 ## Contexto
 
@@ -3393,6 +3400,94 @@ O Ivo pediu para "verificar e corrigir de várias formas melhores, para que nunc
 
 **Verificação:** **746/746 testes unitários** (745 + 1 novo) e **535/535 verificações e2e**, bateria completa sem nenhuma falha. Ficheiro alterado: `src/actions.js`, `tests/actions.test.js`.
 
+## Ponto 59 — Pedido do Ivo (atalhos/serviços da Farmácia Alto dos Moinhos + aba "Documentos" independente em PIM/Manipulados/AUE)
+
+**Contexto.** O Ivo confirmou em definitivo o ponto 58 ("OK JA ESTÁ RESOLVIDO"), com 10 capturas de ecrã de `central-fam.netlify.app` a mostrar 35 serviços em 9 categorias a funcionar e a persistir corretamente. No mesmo pedido, trouxe duas coisas novas: (1) queria os 21 "outros serviços" específicos da Farmácia Alto dos Moinhos (links/documentos reais da farmácia, enviados em Word + 6 PDFs) postos no seu site de teste, sem ficarem "em definitivo no código"; e (2) uma aba nova de "Documentos" dentro de PIM, Manipulados e AUE, independente em cada módulo, para carregar PDF/Word/Excel/HTML/imagens.
+
+Esclarecido com `AskUserQuestion` antes de tocar em código (regra permanente desta sessão para pedidos grandes/ambíguos): o Ivo confirmou que (a) quer um ficheiro para importar no site de teste dele, com os 14 atalhos de módulos já permanentes no código partilhado (não pedidos novos) + os 21 serviços específicos; (b) os "atalhos permanentes" são só os 14 módulos já existentes, nenhum novo; e (c) para avançar já com a aba Documentos também.
+
+### Parte 1 — os 21 "outros serviços" da farmácia: ficheiro de importação, NUNCA código partilhado
+
+**Decisão de arquitetura (a mais importante deste ponto).** Os 21 serviços que o Ivo mandou (ex.: "Site Farmácia Alto Dos Moinhos", "REDE CLARO — Plataforma Serviços ORO/URI/H.Pylori", links do Infarmed, ficheiros de preços/aceitação de devoluções desta farmácia específica) são dados de UMA farmácia, não algo que deva aparecer automaticamente em todas as farmácias novas que se registarem no SaaS. Pôr isto na mesma lógica de `criarAtalhosModulos()` (o seeding que corre para TODA farmácia nova) contaminaria o onboarding de qualquer cliente futuro com os dados de negócio de uma farmácia específica — errado por definição, mesmo que fosse "só por agora, para o Ivo testar".
+
+Em vez disso, reaproveitada a funcionalidade de backup já existente e já testada (`actions.exportarDados()`/`actions.importarDados()`, ligada a `#btnExportar`/`#inputImportar` em `src/ui/modals.js`): o Ivo cria a farmácia de teste normalmente (os 14 atalhos de módulos nascem automaticamente, como em qualquer conta nova) e depois usa Configurações → Importar para carregar um ficheiro no mesmo formato de backup, com os 21 serviços extra e as 9 categorias que os organizam. Zero alterações ao código de seeding partilhado — a única forma de o pedido ("só para mim, sem ficar em definitivo no código") ser cumprido à letra.
+
+**Construção do ficheiro.** Os 21 serviços foram extraídos do `.docx` enviado (3 tabelas, lidas com `python-docx`, já que a ferramenta de leitura de ficheiros deste sandbox não abre `.docx` binário diretamente) cruzando nome do serviço com ou um URL, ou uma referência a um dos 6 PDFs anexados (identificados por hash de nome de ficheiro). Os 6 PDFs foram codificados em base64 e embutidos como `arquivoBase64` no formato exato que `importarDados()` espera para serviços do tipo "ficheiro". Reconstruídas as 9 categorias e a distribuição exata de 35 serviços (12+1+2+6+2+5+1+6, mais os 14 atalhos de módulo dentro da categoria "Serviços Clínicos") cruzando com as 10 capturas de ecrã do Ivo — os totais batem certo em todas as categorias.
+
+**Ponto técnico que exigiu atenção:** `importarDados()` SUBSTITUI por inteiro `servicos`/`categorias` (não faz merge) — confirmado lendo `dataStore.putAll("servicos", ...)`/`putAll("categorias", ...)` em `src/db.js`. Por isso o ficheiro de importação teve de incluir os 14 atalhos de módulo explicitamente (com o campo `modulo` preenchido para cada um), e não confiar só no seeding automático — senão a importação, ao substituir tudo, apagava-os. Verificado com um script de validação dedicado (`/tmp/valida-seed.mjs`, fora do repositório) que chama a `importarDados()` REAL contra uma dataStore falsa: confirma as contagens certas, o conteúdo dos 6 ficheiros gravado corretamente via `setAsset`, os 14 `modulo` corretos, e — o mais importante — que correr `criarAtalhosModulos()` outra vez a seguir a uma importação (o que acontece sempre que `iniciar()` corre) NÃO duplica nada, porque essa função já é idempotente por `modulo`, não só pela flag `atalhosModulosCriados` (que a importação não toca).
+
+Entregue ao Ivo: `seed-servicos-farmacia-alto-dos-moinhos.json` (3,2 MB), com instrução de uso (criar a conta de teste → Configurações → Importar).
+
+### Parte 2 — aba "Documentos" independente em PIM, Manipulados e AUE
+
+**Desenho.** Componente único e reutilizável, `src/ui/documentos-modulo.js` (`criarAbaDocumentosModulo()`), usado de forma independente pelos 3 módulos — cada um com a sua própria chave de configuração e o seu próprio prefixo de asset (`documentos_pim`/`documento_modulo_pim`, `documentos_manipulados`/`documento_modulo_manipulados`, `documentos_aue`/`documento_modulo_aue`), para que os ficheiros carregados num módulo nunca apareçam noutro, nem no módulo geral "Documentos" já existente (`modulos/documentos.html`, com pastas — uma ferramenta à parte, sem relação com esta aba).
+
+Segue exatamente o padrão já comprovado no código para conteúdo pesado: os METADADOS (nome, tipo, tamanho, data) ficam numa lista pequena gravada com `dataStore.setConfig`/`getConfig` (que faz sempre MERGE — nunca substitui outras chaves, mesma proteção do ponto 57) e o CONTEÚDO de cada ficheiro vive à parte em `dataStore.setAsset`/`getAsset`/`deleteAsset` (com fragmentação automática já embutida em `src/db.js` para ficheiros grandes), para nunca aproximar o limite de 6MB por pedido das funções do Netlify. Limite de 15MB por ficheiro (generoso para PDF/Word/Excel, ficheiros maiores são recusados com aviso antes de gastar tempo a carregar). Confirmação nativa (`confirm()`) para eliminar e `prompt()` para renomear — a mesma convenção já usada em todo o resto do código (nunca um sistema de modais novo só para isto).
+
+**Integração em cada módulo:**
+- **PIM** (`modulos/pim.html`) — já tinha um router de "vistas" com barra inferior (`switchView`/`currentView`, ver ponto 14): acrescentado `viewDocumentos` como mais uma vista, com o seu próprio item na barra inferior ("🗂️ Documentos").
+- **Manipulados** (`modulos/manipulados.html`) e **AUE** (`modulos/aue.html`) — arquitetura diferente: uma única tabela com barra inferior a filtrar por ESTADO do pedido (`activeFilter`/`setFilter`). Acrescentado "Documentos" como mais um item dessa barra (fora do mapa de estados, sem contagem associada); quando selecionado, `render()` esconde a tabela de pedidos e os botões de topo (pesquisa/ordenar/importar/exportar/email/+novo pedido, agora agrupados num `<span id="pedidosTopbarActions" style="display:contents;">` para poderem desaparecer como bloco) e mostra a aba de Documentos no lugar.
+- CSS `.doc-list`/`.doc-row` (cartão de ficheiro com ícone, nome, tamanho, data e ações) acrescentado ao `<style>` próprio de cada um dos 3 ficheiros (cada módulo é autocontido, sem folha de estilos partilhada — mesma convenção já usada em todo o resto da Central); `aue.html` também precisou de `.icon-btn`, que ainda não existia nesse módulo.
+
+**Verificação.** `tests/documentos-modulo.test.js` (novo, 8 testes, sem browser — o sandbox não tem acesso ao registo npm para instalar `jsdom`, por isso usa-se um `document`/`FileReader` falsos mas comportamentalmente reais, nunca os métodos do próprio componente a fingir): estado vazio, upload grava metadados+conteúdo nos sítios certos, ficheiro acima de 15MB é recusado sem gravar nada, renomear (e cancelar o `prompt`), eliminar (com e sem confirmação), download não-imagem cria `<a download>` com o `dataUrl` certo, e — o teste mais importante para a decisão de arquitetura acima — dois módulos com chave/prefixo diferentes NUNCA partilham documentos, mesmo usando a mesma `dataStore` por baixo. **754/754 testes unitários** (746 + 8 novos), sem nenhuma falha.
+
+Ficheiros novos: `src/ui/documentos-modulo.js`, `tests/documentos-modulo.test.js`. Ficheiros alterados: `modulos/pim.html`, `modulos/manipulados.html`, `modulos/aue.html` (import do componente, instância, CSS, HTML da vista/container, item de navegação, exposição dos handlers em `window`).
+
+**Por fazer:** publicar (sincronizar para o PC do Ivo + entregar zip atualizado) e confirmar visualmente com o Ivo que a aba funciona no browser a sério — só testada aqui ao nível unitário/lógico, sem Playwright dedicado a esta aba (avaliar acrescentar numa próxima ronda, se o Ivo pedir mais confiança e2e nisto). "Alterar a visualização das categorias gerais" (pedido no mesmo turno) continua por fazer — o Ivo disse que ia mandar fotos a explicar o que quer, ainda não chegaram.
+
+## Ponto 60 — nova identidade: "Central HYGEA" e a IA "HYGEA" (com ícone de atalho, apresentação de abertura e animação "a pensar")
+
+**Pedido do Ivo (27/09/2026), com material em anexo.** Mudar o nome da IA de FARMA para HYGEA, com o ícone que enviou (o cálice de Hígia, em verde-água); esse ícone deve aparecer "na página quando se faz um atalho"; a "Central Operacional" passa a "Central HYGEA"; um dos vídeos que enviou serve de animação enquanto a HYGEA está a pensar, no cantinho esquerdo da caixa onde se escreve a pergunta, tanto no módulo de chat como no mini-chat; o outro vídeo é a apresentação do site/app, num ecrã todo branco, antes do ecrã de login. Ambos os vídeos tinham de ficar **sem marca de água** e com **fundo branco**.
+
+Três decisões foram postas ao Ivo antes de mexer em código (a mudança de nome tinha caminhos com riscos muito diferentes): (a) até onde levar o rename — respondeu **"tudo, incluindo ficheiros e chaves"**; (b) quando mostrar a apresentação — respondeu **"sempre que a app abre"**; (c) onde usar o ícone — respondeu **atalho/favicon**.
+
+### Os três ativos (tratamento dos ficheiros originais)
+
+- **Ícone.** Recortado da imagem enviada (só o símbolo, sem a palavra "HYGEA" por baixo, detetando a banda vazia que separa os dois) e publicado em `assets/hygea/` nos tamanhos que o browser e os sistemas operativos pedem: 16/32/48/96/180/192/512, `favicon.ico` multi-resolução, e uma variante **maskable** com margem maior — o Android recorta o ícone à sua maneira (círculo, quadrado redondo, gota) e sem essa margem cortava o cálice.
+- **Vídeo "a pensar".** O original vinha com **fundo preto** e a marca de água no canto inferior direito. Resolvido com um **corte quadrado centrado** (1248×1248 a partir de 2944×1248): tira a marca de água por completo, sem apagar nem esborratar nada — o motivo está centrado. O fundo preto foi convertido em transparência real tratando o vídeo como o que ele é (um brilho sobre preto, ou seja, cor já pré-multiplicada): a luminância vira canal alfa, reforçada por uma curva, e a cor é "des-pré-multiplicada". Fica um WebM com canal alfa, que assenta em qualquer fundo, mais um MP4 com fundo branco para quem não lê WebM. O primeiro segundo e meio (onde aparecia a palavra "HYGEA") foi cortado, e o resto é reproduzido em vaivém (para a frente e para trás) para o ciclo não dar solavanco.
+- **Vídeo de apresentação.** Marca de água outra vez no canto inferior direito, desta vez por cima do corpo da cobra no fim da animação — o filtro `delogo` deixava um borrão visível nas escamas. Optou-se por **cortar** a largura (2219×1248, exatamente 16:9): a marca de água fica de fora inteira e a composição não perde nada de importante (confirmado fotograma a fotograma ao longo dos 5s). O fundo cinzento-claro foi levado a branco puro com um ajuste de ponto branco, e o resultado publicado em WebM (900 KB) e MP4 (700 KB), mais um fotograma de poster.
+
+**Nota honesta sobre formatos:** o Chromium usado na bateria e2e não traz descodificador de MP4/H.264 (é licenciado). Isto foi descoberto durante a verificação — o primeiro teste da apresentação falhou por o vídeo não tocar, e não por causa do código. Daí cada vídeo ser publicado nos dois formatos, com o WebM primeiro; ao mesmo tempo, obrigou a confirmar que a ausência de vídeo nunca prende o utilizador (ver abaixo).
+
+### O rename FARMA → HYGEA (o que tinha mesmo de correr bem)
+
+O risco aqui não era escrever "HYGEA": era **apagar por engano a palavra "farmácia"**. O código está cheio de `nomeFarmacia`, `farmacêutico`, `farmaciasportuguesas.pt`, e os dois ficheiros de dados trazem largas centenas de nomes de laboratórios e armazenistas com "farma" lá dentro (**Sifarma**, Pentafarma, Empifarma, Farmatint, Novofarma, …). Além disso, "multifarma" é o nome interno da aprendizagem partilhada **entre farmácias** — nada tem a ver com a IA.
+
+Regra usada: só se substitui "farma" quando está **no início de um token** (nem letra nem dígito antes) e **não é seguido de "c"** — em português, tudo o que é farmácia/farmacêutico/farmacológico tem esse "c", e todos os nomes de laboratórios têm "farma" no meio da palavra, nunca no início. As variantes `FARMA`/`Farma`/`farma` foram tratadas em separado (para não estragar `farmaCerebro`, que tem um C legítimo a seguir), mais uma regra para `Farma` no meio de um identificador em camelCase (`avisoFarma`, `initFarmaMiniChat`). Os dois ficheiros de dados foram excluídos por inteiro, e a documentação histórica também (ver a nota no topo deste ficheiro).
+
+Resultado: **607 substituições em 47 ficheiros e 33 ficheiros com nome novo** (`src/hygeaAcoes.js`, `src/ui/hygeaMiniChat.js`, `modulos/hygea-ia.html`, `netlify/functions/hygea-aprendizagens.js`, os testes, os scripts de treino…). Uma passagem final confirmou **zero** ocorrências por converter fora dos ficheiros de dados e da documentação histórica.
+
+### Migração: as farmácias que já existiam não podiam perder nada
+
+Levar o rename até às chaves de dados (como o Ivo pediu) obriga a tratar quem já usa a app. Sem migração aconteciam três coisas de uma vez: a IA arrancava **sem a memória** que tinha aprendido (`config.farmaIaMemoria` ficava órfã), o atalho na página inicial apontava para um ficheiro que **deixou de existir**, e, como os atalhos em falta são detetados pelo campo `modulo`, aparecia um **segundo atalho** ao lado do antigo.
+
+`src/migracaoHygea.js` (novo) trata disto e corre no arranque, **antes** de `criarAtalhosModulos()` — é essa ordem que evita o atalho duplicado:
+- seis chaves de `config` mudam de nome (memória, nome dado à assistente, propostas, treino local, aprendizagem multifarma, etiqueta pendente). Se a chave nova já tiver valor (outro computador já usou a versão nova), é essa que fica: a migração **nunca** escreve por cima de dados mais recentes;
+- o atalho do módulo passa a `hygea-ia`, com o URL novo. O **nome só muda se ainda for o de origem** ("FARMA IA"): se a farmácia lhe chamou outra coisa, esse nome é dela e fica;
+- é **idempotente** — numa farmácia já migrada, ou criada de raiz, não escreve absolutamente nada (verificado por teste).
+
+O **histórico de uso** (Poupança & ROI) foi deliberadamente deixado quieto no servidor: são meses de registos reais com chaves do tipo `farma-ia.perguntar`, e reescrevê-los seria arriscar dados por causa de um nome. Em vez disso normalizam-se **na leitura** (`normalizarChaveUso()` em `usoCatalogo.js`), pelo que a poupança histórica continua a contar, agregada no módulo novo, sem uma única escrita. O caminho antigo da função partilhada (`/api/farma-aprendizagens`) também continua a responder, para os computadores que ainda tenham a versão anterior em cache — os dados vivem num blob com nome próprio, que não mudou.
+
+### Apresentação antes do login
+
+Ecrã branco, vídeo ao centro, o nome "CENTRAL HYGEA" a aparecer por baixo e um "toque para continuar". Vive em HTML/CSS/JS próprios dentro de `index.html`, **fora da app** (`src/app.js`): assim pinta no primeiro instante, sem esperar por módulos JS. O princípio que orientou o resto foi **nunca prender ninguém à espera de um vídeo**: sai no fim, sai a um clique ou tecla, sai se o vídeo der erro (incluindo o erro dos `<source>`, que não sobe pela árvore e obriga a ouvir na fase de captura), sai se ao fim de 1,8s não tiver sequer começado, e sai de qualquer forma aos 7s. Quem tem "reduzir movimento" ligado no sistema não a vê de todo.
+
+**Uma decisão que vale a pena registar por não ser exatamente o que foi pedido:** o Ivo escolheu "sempre que a app abre". Voltar de um módulo para a Central é uma navegação dentro da aplicação — e quem entra e sai dos módulos dezenas de vezes por dia levaria com a apresentação outras tantas. Por isso a apresentação aparece sempre **exceto** quando a navegação vem de dentro (`/modulos/...` da mesma origem). É a interpretação de "abrir a app" que serve o pedido sem o tornar um castigo; fica aqui registado porque é uma interpretação, não a instrução à letra — e muda-se numa linha se o Ivo preferir o literal.
+
+### Animação "a pensar"
+
+`src/ui/hygeaPensar.js` (novo) cria o indicador uma única vez para os dois chats — mini-chat da Central e módulo completo. Aparece à esquerda da caixa de escrita enquanto a resposta está a ser preparada e desaparece quando ela chega; está num `finally`, e não no fim de cada ramo, precisamente porque há vários caminhos de saída (ação reconhecida, resposta direta, IA local, erro de rede) e um deles esquecido deixaria a animação presa a rodar para sempre. O vídeo é decorativo (`aria-hidden`, fora da navegação por teclado); quem usa leitor de ecrã ouve "a pensar…". Quando está escondido o vídeo é pausado, para não gastar bateria a descodificar fotogramas que ninguém vê.
+
+### Verificação
+
+- **13 testes unitários novos** em `tests/migracaoHygea.test.js`, cobrindo a parte pura, as chaves de config, o arranque de uma farmácia antiga (incluindo o caso do atalho duplicado) e o histórico de uso. Confirmados a apanhar a regressão: com a migração de serviços desligada falham 5; com a normalização das chaves de uso desligada falham 2.
+- **24 verificações e2e novas** em `tests/e2e/modules/19-hygea-marca.mjs`, em browser real: a apresentação aparece e o vídeo **reproduz mesmo** (verifica-se `currentTime`/`videoWidth`, porque um teste que só olhasse para o elemento passaria com o vídeo partido), sai sozinha, salta-se com um clique, não se repete ao voltar de um módulo, aparece a quem chega de fora; o manifesto e os cinco ficheiros de ícone respondem; um módulo também declara o ícone; e a animação "a pensar" aparece e desaparece nos dois chats.
+- Bateria completa depois de toda esta mudança: **767/767 testes unitários** (754 + 13 novos) e **559/559 verificações e2e** (535 + 24 novas), sem nenhuma falha.
+- `sw.js`: `CACHE_VERSION` para `central-hygea-v5.0.0` — uma versão em cache serviria ficheiros `src/farma*.js` que já não existem. Os dois vídeos ficaram deliberadamente **fora** da lista do "app shell": são os ficheiros mais pesados e, se um falhasse, `cache.addAll` rejeitava e a instalação inteira ia abaixo, deixando a app sem cache nenhuma; são guardados na mesma pelo tratador de `fetch`, na primeira vez que tocam.
+- `tests/e2e/local-server.mjs`: acrescentados os tipos MIME de vídeo/imagem/manifesto, que faltavam — sem eles o browser recusava o vídeo e o teste dava um falso negativo sem relação com o código da app.
+
+Ficheiros novos: `src/migracaoHygea.js`, `src/ui/hygeaPensar.js`, `manifest.webmanifest`, `assets/hygea/*` (ícones e vídeos), `tests/migracaoHygea.test.js`, `tests/e2e/modules/19-hygea-marca.mjs`. Alterados: 47 ficheiros pelo rename, mais `index.html`, `sw.js`, `netlify.toml`, `package.json`, `README.md`, `src/usoCatalogo.js`, `src/usoLeitura.js`, `src/actions.js` e os 16 ficheiros HTML que passaram a declarar o ícone.
+
 ## Plano de trabalho
 
 - ~~Desenhar o modelo de dados multi-farmácia sobre Netlify Blobs (tenants, sessões JWT, namespacing).~~ Feito.
@@ -3530,25 +3625,39 @@ O Ivo pediu para "verificar e corrigir de várias formas melhores, para que nunc
   que só leem `config` do estado partilhado (`catalogo-produtos.html`, `devolucao-frio.html`,
   `mapa-cardiovascular.html`, `medela.html`, `reservas.html`) e `src/manutencao.js`/`src/usoLeitura.js` —
   não tocados nesta ronda, deliberadamente fora do âmbito acordado com o Ivo.
-- **AINDA NÃO CONFIRMADO COMO RESOLVIDO PELO IVO** (correção nova aplicada e testada, falta confirmação no
-  ambiente real dele) — Bug crítico: um serviço recém-criado desaparecia sozinho ao fim de segundos
-  (queixa direta do Ivo). Duas causas distintas encontradas e corrigidas, com o mesmo sintoma: (1) ponto
-  57 — gravações concorrentes de dois computadores da mesma farmácia podiam apagar-se uma à outra;
-  corrigido em `src/db.js` com merge por diferença. O Ivo confirmou (colando o `src/db.js` publicado em
-  `central-fam.netlify.app`) que esta correção já estava mesmo ao vivo — e reportou que o problema
-  persistia mesmo assim, o que levou à investigação de uma segunda causa. (2) **ponto 58 — a causa
-  encontrada e reproduzida de forma determinística**: `recarregarDoServidor()` (o botão "Atualizar" da
-  sidebar, sem NENHUMA proteção) substituía o estado local inteiro pelo do servidor mesmo quando uma
-  criação recente ainda estava na janela de 350ms de gravação em debounce, apagando-a — numa ÚNICA aba,
-  sem concorrência entre computadores nenhuma. Corrigido com `garantirEstadoLocalGravado()`, que força e
-  espera por qualquer gravação pendente antes de qualquer refresh. Verificado com um script de reprodução
-  Playwright dedicado (falha de forma determinística sem a correção, passa com ela) e 4 testes unitários
-  novos — **745/745 testes unitários, 535/535 verificações e2e**. `CACHE_VERSION` do service worker subida
-  outra vez (v4.1.0 → v4.2.0), pela mesma razão do ponto 57 (`src/actions.js` também está no "app shell"
-  em cache). **Falta:** publicar esta correção e o Ivo confirmar, no seu ambiente real, que o problema
-  desaparece mesmo — só ele pode validar isso. Fica também em aberto, por falta de informação suficiente: o
-  ecrã intermitente "A aplicação não carregou" que o Ivo mostrou em captura de ecrã — pode ou não estar
-  relacionado; precisa de um erro de consola capturado da próxima vez que acontecer.
+- ~~Bug crítico: um serviço recém-criado desaparecia sozinho ao fim de segundos (queixa direta do Ivo).~~
+  **Confirmado resolvido pelo Ivo** (2026-09-26, "OK JA ESTÁ RESOLVIDO", com 10 capturas de ecrã de
+  `central-fam.netlify.app` a mostrar 35 serviços em 9 categorias a funcionar e a persistir). Duas causas
+  distintas encontradas e corrigidas, com o mesmo sintoma: (1) ponto 57 — gravações concorrentes de dois
+  computadores da mesma farmácia podiam apagar-se uma à outra; corrigido em `src/db.js` com merge por
+  diferença. (2) ponto 58 — `recarregarDoServidor()` (o botão "Atualizar") substituía o estado local
+  inteiro pelo do servidor mesmo a meio da janela de 350ms de gravação em debounce de uma criação recente,
+  apagando-a — numa ÚNICA aba, sem concorrência nenhuma entre computadores. Corrigido com
+  `garantirEstadoLocalGravado()`, reforçado no mesmo dia com abortar o refresh se essa gravação forçada
+  falhar (ver ponto 58, secção "Continuação"). Fica em aberto, por falta de informação suficiente: o ecrã
+  intermitente "A aplicação não carregou" que o Ivo mostrou numa captura de ecrã anterior — pode ou não
+  estar relacionado; precisa de um erro de consola capturado da próxima vez que acontecer.
+- ~~Atalhos permanentes (14 módulos/ferramentas já existentes) como serviços, sem misturar dados
+  específicos de uma farmácia no código partilhado do SaaS.~~ Feito (2026-09-26) — ver ponto 59: os 14
+  atalhos já eram permanentes desde o ponto 16, confirmado que não precisam de nenhuma alteração; os 21
+  serviços específicos da Farmácia Alto dos Moinhos entregues como ficheiro de importação (backup), nunca
+  tocando no seeding partilhado.
+- ~~Aba "Documentos" independente dentro de PIM, Manipulados e AUE (upload de PDF/Word/Excel/HTML/
+  imagens, guardado só nesse módulo).~~ Feito (2026-09-26) — ver ponto 59 (`src/ui/documentos-modulo.js`,
+  754/754 testes unitários). Falta publicar e confirmar visualmente com o Ivo num browser a sério.
+- "Alterar a visualização das categorias gerais" (pedido no mesmo turno do ponto 59) — o Ivo disse que ia
+  mandar fotos a explicar o que quer mudar; ainda não chegaram, nada implementado.
+- ~~Nova identidade: IA "HYGEA" (era FARMA), "Central HYGEA" (era Central Operacional), ícone do atalho,
+  vídeo de apresentação antes do login e animação "a pensar" nos dois chats.~~ Feito (2026-09-27) — ver
+  ponto 60, incluindo a migração que protege as farmácias já existentes.
+- Rever com o Ivo, depois de ver a app ao vivo: (a) se quer a apresentação mesmo em TODAS as aberturas,
+  incluindo ao voltar de um módulo (hoje é saltada nesse caso — ver ponto 60, "uma decisão que vale a pena
+  registar"); (b) se quer o ícone HYGEA também dentro da app (ecrã de entrada, cabeçalho), que ficou de
+  fora por ter escolhido só "atalho/favicon".
+- Traduzir os textos novos do ponto 60 ("toque para continuar", "a pensar…") quando a ronda de tradução
+  dos módulos avançar — nasceram só em português, como o resto dos módulos.
+- Construir e entregar ao Ivo um zip completo e atualizado do código (pedido explícito, "pronto a
+  postar"), já com as alterações do ponto 59 incluídas — por fazer.
 - Fase 4 do plano "FARMA aprende a pensar" (ponto 41/42) — pesquisa pontual na internet, só informação
   pública (ex.: preço/princípio ativo de um medicamento), nunca dados de utentes, nunca uma IA externa.
   Candidato identificado: `transparencia.sns.gov.pt` (Opendatasoft, plausivelmente com CORS) — mas este

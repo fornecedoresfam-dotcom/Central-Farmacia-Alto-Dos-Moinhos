@@ -1,7 +1,7 @@
 {
-  "name": "central-operacional-saas",
+  "name": "central-hygea-saas",
   "version": "0.1.0",
-  "description": "Central Operacional — plataforma multi-farmácia (SaaS) para orquestração de serviços internos, publicável na Microsoft Store, Google Play e App Store.",
+  "description": "Central HYGEA — plataforma multi-farmácia (SaaS) para orquestração de serviços internos, publicável na Microsoft Store, Google Play e App Store.",
   "type": "module",
   "private": true,
   "scripts": {

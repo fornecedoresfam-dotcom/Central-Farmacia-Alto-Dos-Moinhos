@@ -45,7 +45,7 @@ export function fakeLogoBase64(kbSize) {
 export const MODULOS = [
   'pim', 'gabinete', 'documentos', 'aue', 'manipulados', 'stocks', 'devolucoes-armazenistas',
   'catalogo-produtos', 'devolucao-frio', 'mapa-cardiovascular', 'medela', 'reservas', 'conversor-pdf',
-  'farma-ia'
+  'hygea-ia'
 ];
 
 export const viewports = { mobile: { width: 390, height: 844 }, tablet: { width: 800, height: 1100 }, desktop: { width: 1440, height: 900 } };

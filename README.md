@@ -1,4 +1,4 @@
-# Central Operacional — versão multi-farmácia (SaaS)
+# Central HYGEA — versão multi-farmácia (SaaS)
 
 Bifurcação da central de produção de uma farmácia (`central-operacional-farmacia`), transformada
 num produto para **várias farmácias**, cada uma com a sua própria conta e os seus próprios dados,

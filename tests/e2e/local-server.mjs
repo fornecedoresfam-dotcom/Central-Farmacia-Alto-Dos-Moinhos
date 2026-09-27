@@ -23,7 +23,7 @@ const ROOT = path.resolve(process.argv[3] || '/home/claude/central-operacional-s
 const authFn = await import(path.join(ROOT, 'netlify/functions/auth.js'));
 const dataFn = await import(path.join(ROOT, 'netlify/functions/data.js'));
 const assetFn = await import(path.join(ROOT, 'netlify/functions/asset.js'));
-const aprendizagensFn = await import(path.join(ROOT, 'netlify/functions/farma-aprendizagens.js'));
+const aprendizagensFn = await import(path.join(ROOT, 'netlify/functions/hygea-aprendizagens.js'));
 
 // --- armazenamento em memória, persistente durante a vida do processo ---
 const stores = new Map();
@@ -53,9 +53,14 @@ globalThis.__localServerStats = stats;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8', // farmaTreinoLocal.js importa scripts/*.mjs dinamicamente no browser (ponto 43)
+  '.mjs': 'text/javascript; charset=utf-8', // hygeaTreinoLocal.js importa scripts/*.mjs dinamicamente no browser (ponto 43)
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon'
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
+  // Ponto 60 — ecrã de apresentação, vídeo "a pensar" da HYGEA e manifesto da
+  // app. Sem o tipo certo o browser recusa reproduzir o vídeo (e o teste e2e
+  // dava um falso negativo que nada tinha a ver com o código da app).
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.webmanifest': 'application/manifest+json'
 };
 
 async function serveStatic(urlPath, res) {
@@ -124,7 +129,7 @@ const server = http.createServer(async (req, res) => {
       const webRes = await assetFn.handleRequest(webReq, { params: { key } }, getStore);
       stats.requests.push({ path: pathname, method: req.method, ms: Date.now() - t0, resBytes: Number(webRes.headers.get('content-length') || 0), reqBytes: body.length });
       await sendWebResponse(webRes, res);
-    } else if (pathname === '/api/farma-aprendizagens') {
+    } else if (pathname === '/api/hygea-aprendizagens') {
       const body = await readBody(req);
       const webReq = nodeReqToWebRequest(req, body);
       const webRes = await aprendizagensFn.handleRequest(webReq, getStore);

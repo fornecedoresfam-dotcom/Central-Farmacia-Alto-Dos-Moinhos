@@ -40,7 +40,7 @@ describe("domain.js — CATEGORIAS_PADRAO / MODULOS_ATALHOS (constantes)", () =>
     assert.equal(new Set(ids).size, ids.length);
   });
 
-  test("MODULOS_ATALHOS tem exatamente 14 entradas (um atalho por módulo/ferramenta da Central, incluindo FARMA IA — ponto 25)", () => {
+  test("MODULOS_ATALHOS tem exatamente 14 entradas (um atalho por módulo/ferramenta da Central, incluindo HYGEA IA — ponto 25)", () => {
     assert.equal(MODULOS_ATALHOS.length, 14);
   });
 

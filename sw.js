@@ -20,16 +20,24 @@
 // Ponto 58: src/actions.js mudou substancialmente outra vez (o botão
 // "Atualizar" podia apagar um serviço acabado de criar) — mesma lógica,
 // subida de novo.
-const CACHE_VERSION = "central-farmacia-v4.2.0";
+// Ponto 60 (FARMA -> HYGEA): mudou tudo de uma vez — nomes de ficheiros de
+// src/, o módulo da IA, o manifesto, os ícones e o ecrã de apresentação. Um
+// browser com a versão antiga em cache serviria ficheiros que já não
+// existem, por isso a versão sobe para uma nova série (v5).
+const CACHE_VERSION = "central-hygea-v5.0.0";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./manifest.webmanifest",
   "./assets/styles.css",
   "./assets/dev-logo.png",
+  "./assets/hygea/hygea-icon-192.png",
+  "./assets/hygea/hygea-icon-512.png",
   "./src/app.js",
   "./src/store.js",
   "./src/db.js",
   "./src/actions.js",
+  "./src/migracaoHygea.js",
   "./src/events.js",
   "./src/utils.js",
   "./src/icons.js",
@@ -41,6 +49,11 @@ const APP_SHELL = [
   "./src/ui/palette.js",
   "./src/ui/modals.js"
 ];
+// Os vídeos (apresentação e "a pensar") ficam deliberadamente FORA desta
+// lista: são os ficheiros mais pesados do conjunto e, se um deles falhasse,
+// `cache.addAll` rejeitava e a instalação inteira do service worker ia
+// abaixo — ficando a app sem cache nenhuma. São guardados na mesma, pelo
+// tratador de "fetch" mais abaixo, na primeira vez que tocam.
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

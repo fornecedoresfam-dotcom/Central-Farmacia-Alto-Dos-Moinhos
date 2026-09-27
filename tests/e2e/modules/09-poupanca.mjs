@@ -130,7 +130,7 @@ export async function run(browser) {
     await page.waitForTimeout(200);
     await page.click('#modalConfig .modal-tab[data-tab="poupanca"]');
 
-    // Ver nota em 17-farma-aprender.mjs: `waitForFunction(fn, options)` com só 2
+    // Ver nota em 17-hygea-aprender.mjs: `waitForFunction(fn, options)` com só 2
     // argumentos passa `options` como `arg` (ignorado) em vez de aplicar o
     // timeout pedido — corrigido com `null` a meio para o timeout ser mesmo respeitado.
     const chartCarregouViaFallback = await page.waitForFunction(() => !!window.Chart, null, { timeout: 6000 }).then(() => true).catch(() => false);
