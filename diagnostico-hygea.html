@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico da apresentação · Central HYGEA</title>
+<link rel="icon" href="/assets/hygea/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/assets/hygea/hygea-icon-180.png">
+<meta name="robots" content="noindex">
+<!--
+  Página de diagnóstico da abertura (ponto 60, continuação).
+
+  Serve para responder, em cada computador, a uma pergunta concreta: "porque
+  é que aqui a apresentação não aparece?". Abre-se sem sessão, não lê nem
+  mostra dados de nenhuma farmácia — só verifica ficheiros públicos, o que
+  este browser sabe ler e as definições do próprio computador.
+-->
+<style>
+  :root{ --tinta:#1c2b24; --suave:#5C7A6E; --linha:#DCE7E2; --verde:#1f7a4d; --fundo:#F7FAF8; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--fundo); color:var(--tinta); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  .caixa{ max-width:780px; margin:0 auto; padding:28px 20px 60px; }
+  header{ display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+  header img{ width:52px; height:52px; }
+  h1{ font-size:20px; margin:0; }
+  .sub{ color:var(--suave); font-size:13.5px; margin:2px 0 22px; }
+  .veredito{ border-radius:12px; padding:16px 18px; margin-bottom:22px; border:1px solid var(--linha); background:#fff; }
+  .veredito b{ display:block; font-size:16px; margin-bottom:4px; }
+  .veredito.bom{ border-color:#BEE3CE; background:#F1FBF5; }
+  .veredito.mau{ border-color:#F2C4C0; background:#FDF4F3; }
+  .veredito.espera{ border-color:#EFE0B0; background:#FDFAF0; }
+  section{ background:#fff; border:1px solid var(--linha); border-radius:12px; margin-bottom:14px; overflow:hidden; }
+  section h2{ font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--suave); margin:0; padding:12px 16px; border-bottom:1px solid var(--linha); }
+  .linha{ display:flex; gap:12px; align-items:flex-start; padding:10px 16px; border-bottom:1px solid #F0F5F2; }
+  .linha:last-child{ border-bottom:0; }
+  .sinal{ flex:0 0 22px; font-size:16px; line-height:1.3; }
+  .texto{ flex:1; min-width:0; }
+  .texto small{ display:block; color:var(--suave); font-size:12.5px; word-break:break-word; }
+  .acoes{ display:flex; gap:10px; flex-wrap:wrap; margin-top:20px; }
+  button, a.botao{ font:inherit; font-weight:600; font-size:14px; border:1px solid var(--linha); background:#fff;
+    color:var(--tinta); border-radius:9px; padding:9px 15px; cursor:pointer; text-decoration:none; }
+  button.principal{ background:var(--verde); border-color:var(--verde); color:#fff; }
+  #relatorio{ width:100%; min-height:160px; margin-top:14px; font:12.5px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;
+    border:1px solid var(--linha); border-radius:10px; padding:12px; display:none; background:#fff; color:var(--tinta); }
+</style>
+</head>
+<body>
+<div class="caixa">
+  <header>
+    <img src="/assets/hygea/hygea-icon-192.png" alt="">
+    <div>
+      <h1>Diagnóstico da apresentação</h1>
+      <div class="sub">Abra esta página no computador onde o vídeo de entrada não aparece.</div>
+    </div>
+  </header>
+
+  <div class="veredito espera" id="veredito"><b>A verificar…</b><span>Um momento.</span></div>
+
+  <section><h2>Ficheiros publicados no site</h2><div id="secFicheiros"></div></section>
+  <section><h2>Este browser e este computador</h2><div id="secBrowser"></div></section>
+  <section><h2>Versão instalada (cache offline)</h2><div id="secCache"></div></section>
+
+  <div class="acoes">
+    <button class="principal" onclick="location.reload()">Verificar outra vez</button>
+    <a class="botao" href="/?intro=1">Abrir a Central e forçar a apresentação</a>
+    <button onclick="mostrarRelatorio()">Copiar relatório</button>
+  </div>
+  <textarea id="relatorio" readonly></textarea>
+</div>
+
+<script>
+var R = { ficheiros: [], browser: [], cache: [] };
+
+function linha(alvo, sinal, titulo, detalhe) {
+  var div = document.createElement("div");
+  div.className = "linha";
+  div.innerHTML = '<div class="sinal"></div><div class="texto"><span></span><small></small></div>';
+  div.querySelector(".sinal").textContent = sinal;
+  div.querySelector("span").textContent = titulo;
+  div.querySelector("small").textContent = detalhe || "";
+  document.getElementById(alvo).appendChild(div);
+}
+
+function kb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB"; }
+
+var FICHEIROS = [
+  { url: "/assets/hygea/hygea-apresentacao.webm", nome: "Vídeo de apresentação (WebM)", minimo: 100000 },
+  { url: "/assets/hygea/hygea-apresentacao.mp4", nome: "Vídeo de apresentação (MP4)", minimo: 100000 },
+  { url: "/assets/hygea/hygea-apresentacao-poster.jpg", nome: "Imagem de abertura", minimo: 5000 },
+  { url: "/assets/hygea/hygea-a-pensar.webm", nome: 'Animação "a pensar" (WebM)', minimo: 20000 },
+  { url: "/assets/hygea/hygea-icon-192.png", nome: "Ícone do atalho", minimo: 2000 },
+  { url: "/manifest.webmanifest", nome: "Manifesto da aplicação", minimo: 100 }
+];
+
+async function verificarFicheiros() {
+  var faltam = 0;
+  for (var i = 0; i < FICHEIROS.length; i++) {
+    var f = FICHEIROS[i];
+    try {
+      var res = await fetch(f.url + "?d=" + Date.now(), { cache: "no-store" });
+      var buf = res.ok ? await res.arrayBuffer() : null;
+      var tam = buf ? buf.byteLength : 0;
+      var bom = res.ok && tam >= f.minimo;
+      if (!bom) faltam++;
+      linha("secFicheiros", bom ? "✅" : "❌", f.nome,
+        bom ? kb(tam) + " · " + (res.headers.get("content-type") || "") : "NÃO ESTÁ PUBLICADO (resposta " + res.status + ")");
+      R.ficheiros.push(f.nome + ": " + (bom ? "ok " + kb(tam) : "FALTA (" + res.status + ")"));
+    } catch (e) {
+      faltam++;
+      linha("secFicheiros", "❌", f.nome, "não foi possível obter: " + e.message);
+      R.ficheiros.push(f.nome + ": erro " + e.message);
+    }
+  }
+
+  // A página inicial publicada já traz a apresentação?
+  try {
+    var res2 = await fetch("/?d=" + Date.now(), { cache: "no-store" });
+    var html = await res2.text();
+    var temIntro = html.indexOf("hygeaIntro") !== -1;
+    var temHygea = html.indexOf("Central HYGEA") !== -1;
+    if (!temIntro) faltam++;
+    linha("secFicheiros", temIntro ? "✅" : "❌", "Página inicial publicada",
+      temIntro ? "já é a versão com apresentação" + (temHygea ? " e com o nome Central HYGEA" : "")
+               : "é ainda uma versão ANTIGA, sem a apresentação — falta publicar o index.html novo");
+    R.ficheiros.push("index publicado com apresentação: " + temIntro);
+  } catch (e) { R.ficheiros.push("index: erro " + e.message); }
+  return faltam;
+}
+
+async function verificarBrowser() {
+  var problemas = 0;
+  var v = document.createElement("video");
+  var webm = v.canPlayType('video/webm; codecs="vp9"');
+  var mp4 = v.canPlayType('video/mp4; codecs="avc1.42E01E"');
+  var leAlgum = !!(webm || mp4);
+  if (!leAlgum) problemas++;
+  linha("secBrowser", leAlgum ? "✅" : "❌", "Formatos de vídeo que este browser lê",
+    "WebM: " + (webm || "não") + " · MP4: " + (mp4 || "não"));
+  R.browser.push("codecs webm=" + (webm || "não") + " mp4=" + (mp4 || "não"));
+
+  var reduzir = false;
+  try { reduzir = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+  window.__reduzirAnimacoes = reduzir;
+  linha("secBrowser", reduzir ? "⚠️" : "✅", "Animações do sistema",
+    reduzir ? 'este computador tem "reduzir animações" LIGADO — a apresentação aparece parada e mais curta (no Windows: Definições → Acessibilidade → Efeitos visuais → Efeitos de animação)'
+            : "normais — a apresentação toca a mexer");
+  R.browser.push("reduzir animações: " + reduzir);
+
+  // reprodução automática, com o ficheiro verdadeiro
+  var auto = document.createElement("video");
+  auto.muted = true; auto.playsInline = true; auto.preload = "auto";
+  auto.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;";
+  auto.src = webm ? "/assets/hygea/hygea-apresentacao.webm" : "/assets/hygea/hygea-apresentacao.mp4";
+  document.body.appendChild(auto);
+  var resultado = await new Promise(function (resolve) {
+    var pronto = false;
+    var fim = setTimeout(function () { if (!pronto) { pronto = true; resolve(auto.currentTime > 0 ? "ok" : "lento"); } }, 6000);
+    auto.addEventListener("playing", function () { if (!pronto) { pronto = true; clearTimeout(fim); resolve("ok"); } });
+    auto.addEventListener("error", function () { if (!pronto) { pronto = true; clearTimeout(fim); resolve("erro"); } });
+    var p = auto.play();
+    if (p && p.catch) p.catch(function (err) { if (!pronto) { pronto = true; clearTimeout(fim); resolve("bloqueado:" + (err && err.name)); } });
+  });
+  try { auto.pause(); auto.remove(); } catch (e) {}
+  if (resultado !== "ok") problemas++;
+  linha("secBrowser", resultado === "ok" ? "✅" : "❌", "Reprodução automática do vídeo",
+    resultado === "ok" ? "funciona neste computador"
+      : resultado === "lento" ? "o vídeo demorou mais de 6 segundos a arrancar (ligação lenta ou computador ocupado)"
+      : resultado === "erro" ? "o browser não conseguiu ler o ficheiro de vídeo"
+      : "o browser BLOQUEIA a reprodução automática (" + resultado.split(":")[1] + ") — normalmente uma definição do Chrome ou uma regra da empresa");
+  R.browser.push("autoplay: " + resultado);
+
+  linha("secBrowser", "ℹ️", "Browser", navigator.userAgent);
+  R.browser.push("ua: " + navigator.userAgent);
+  return problemas;
+}
+
+async function verificarCache() {
+  var problemas = 0;
+  try {
+    if (!("serviceWorker" in navigator)) {
+      linha("secCache", "ℹ️", "Modo offline", "este browser não guarda a app para uso offline");
+      return 0;
+    }
+    var regs = await navigator.serviceWorker.getRegistrations();
+    var nomes = await (window.caches ? caches.keys() : Promise.resolve([]));
+    var atual = nomes.filter(function (n) { return n.indexOf("central-hygea-v5") === 0; });
+    var antigas = nomes.filter(function (n) { return n.indexOf("central-hygea-v5") !== 0; });
+    if (nomes.length && !atual.length) problemas++;
+    linha("secCache", atual.length ? "✅" : (nomes.length ? "⚠️" : "ℹ️"), "Versão guardada neste computador",
+      nomes.length ? (nomes.join(", ") + (atual.length ? "" : " — é uma versão ANTIGA; feche e volte a abrir a Central para atualizar"))
+                   : "ainda não há nada guardado (primeira visita)");
+    R.cache.push("caches: " + (nomes.join(",") || "nenhuma") + " | registos SW: " + regs.length);
+  } catch (e) {
+    R.cache.push("cache: erro " + e.message);
+  }
+  return problemas;
+}
+
+function veredito(classe, titulo, texto) {
+  var el = document.getElementById("veredito");
+  el.className = "veredito " + classe;
+  el.innerHTML = "<b></b><span></span>";
+  el.querySelector("b").textContent = titulo;
+  el.querySelector("span").textContent = texto;
+}
+
+function mostrarRelatorio() {
+  var t = document.getElementById("relatorio");
+  t.style.display = "block";
+  t.value = "DIAGNÓSTICO CENTRAL HYGEA — " + new Date().toLocaleString("pt-PT") + "\n" +
+    "site: " + location.origin + "\n\nFICHEIROS\n- " + R.ficheiros.join("\n- ") +
+    "\n\nBROWSER\n- " + R.browser.join("\n- ") +
+    "\n\nCACHE\n- " + R.cache.join("\n- ");
+  t.select();
+  try { document.execCommand("copy"); } catch (e) {}
+}
+
+(async function () {
+  var faltam = await verificarFicheiros();
+  var browser = await verificarBrowser();
+  var cache = await verificarCache();
+  if (faltam > 0) {
+    veredito("mau", "Faltam ficheiros no site publicado",
+      "A apresentação não pode aparecer porque o que ela precisa não está publicado neste endereço. Veja acima o que está a vermelho e volte a publicar essa parte (a pasta assets/hygea inteira e o index.html novo).");
+  } else if (browser > 0) {
+    veredito("mau", "Os ficheiros estão bem — o problema é deste computador",
+      "Veja acima a linha a vermelho: ou o browser bloqueia a reprodução automática, ou o vídeo demora demasiado a arrancar, ou este browser não lê nenhum dos dois formatos.");
+  } else if (cache > 0) {
+    veredito("espera", "Está tudo publicado, mas este computador tem uma versão antiga guardada",
+      "Feche todos os separadores da Central e volte a abri-la. Se persistir, abra com Ctrl+F5.");
+  } else if (window.__reduzirAnimacoes) {
+    veredito("espera", 'Encontrado: este computador tem "reduzir animações" ligado',
+      'É por isso que aqui a abertura não toca como nos outros — fica a imagem parada com o nome, uns segundos. ' +
+      'Ou se liga outra vez os efeitos de animação no Windows (Definições → Acessibilidade → Efeitos visuais), ' +
+      'ou se muda a app para tocar o vídeo mesmo assim, em todos os computadores. Para confirmar agora que o vídeo ' +
+      'em si funciona aqui, use o botão "Abrir a Central e forçar a apresentação".');
+  } else {
+    veredito("bom", "Está tudo bem deste lado",
+      "Os ficheiros estão publicados, o browser lê-os e a reprodução automática funciona. Se mesmo assim não vir a apresentação ao abrir a Central, é porque entrou nela a partir de um módulo (nesse caso é saltada de propósito) — use o botão abaixo para a forçar.");
+  }
+})();
+</script>
+</body>
+</html>
