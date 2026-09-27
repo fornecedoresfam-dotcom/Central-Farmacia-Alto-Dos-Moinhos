@@ -59,23 +59,74 @@
     animation:hygeaIntroAparece .7s ease 2.6s forwards;
   }
   @keyframes hygeaIntroAparece{ to{ opacity:1; } }
-  /* Quem pediu ao sistema para reduzir animações não leva com o vídeo. */
-  @media (prefers-reduced-motion: reduce){ #hygeaIntro{ display:none; } }
+  /* Quem tem "reduzir animações" ligado no sistema não leva com o vídeo a
+     mexer — mas continua a ver a abertura, parada (o fotograma de poster) e
+     mais curta. Antes escondia-se o ecrã todo, e isso explicava computadores
+     onde a apresentação simplesmente nunca aparecia: no Windows basta ter os
+     "efeitos de animação" desligados (coisa comum em máquinas mais antigas)
+     para o browser passar a dizer que se quer menos movimento. */
+  @media (prefers-reduced-motion: reduce){
+    #hygeaIntroNome, #hygeaIntroSaltar{ animation:none; opacity:1; }
+    #hygeaIntro{ transition:none; }
+  }
 </style>
 <script>
+/**
+ * Apresentação de abertura. Duas regras acima de tudo o resto:
+ *   1. ninguém fica preso à espera de um vídeo (se falhar, entra-se na app);
+ *   2. quando não dá para mostrar o vídeo, DIZ-SE PORQUÊ — em
+ *      `window.HYGEA_INTRO` e na consola. Foi precisamente isto que faltou
+ *      quando o Ivo reportou "só neste PC é que aparece": sem um motivo
+ *      registado, a única forma de perceber era adivinhar.
+ * Para testar em qualquer computador: "?intro=1" força a apresentação
+ * (ignora a regra de vir de dentro e o "reduzir animações"), "?intro=0"
+ * salta-a. A página /diagnostico-hygea.html explica tudo em português.
+ */
 (function () {
+  // Se o computador pede menos animações (no Windows: Definições →
+  // Acessibilidade → Efeitos visuais → Efeitos de animação desligados), a
+  // abertura aparece PARADA: o fotograma inicial e o nome, durante 2s. É a
+  // razão mais provável para a apresentação "não aparecer" numas máquinas e
+  // aparecer noutras. Pondo isto a `false`, o vídeo passa a tocar em todas,
+  // ignorando essa preferência do sistema — uma linha, decisão do Ivo.
+  var RESPEITAR_REDUZIR_ANIMACOES = true;
+
   var intro = document.getElementById("hygeaIntro");
   if (!intro) return;
   var video = document.getElementById("hygeaIntroVideo");
   var saiu = false;
+  var arrancou = false;
+  var diag = window.HYGEA_INTRO = { mostrada: null, motivo: null, arrancou: false, formatos: null };
 
-  function sair() {
+  try {
+    var teste = document.createElement("video");
+    diag.formatos = {
+      webm: teste.canPlayType('video/webm; codecs="vp9"') || "(não)",
+      mp4: teste.canPlayType('video/mp4; codecs="avc1.42E01E"') || "(não)"
+    };
+  } catch (e) {}
+
+  function sair(motivo) {
     if (saiu) return;
     saiu = true;
+    diag.motivo = motivo;
+    diag.arrancou = arrancou;
+    if (diag.mostrada === null) diag.mostrada = arrancou;
+    try { console.info("[HYGEA] apresentação:", motivo, diag); } catch (e) {}
     try { video.pause(); } catch (e) {}
     intro.classList.add("hygea-intro-sai");
     setTimeout(function () { if (intro.parentNode) intro.parentNode.removeChild(intro); }, 500);
   }
+  function saltarJa(motivo) {
+    diag.mostrada = false;
+    diag.motivo = motivo;
+    try { console.info("[HYGEA] apresentação não mostrada:", motivo); } catch (e) {}
+    if (intro.parentNode) intro.parentNode.removeChild(intro);
+  }
+
+  var params = location.search || "";
+  var forcar = /[?&]intro=1/.test(params);
+  if (/[?&]intro=0/.test(params)) { saltarJa("pedida a saltar com ?intro=0"); return; }
 
   // Voltar de um módulo para a Central ("← Voltar à Central HYGEA") é uma
   // navegação DENTRO da aplicação, não abri-la de novo — repetir aí a
@@ -88,21 +139,57 @@
       new URL(document.referrer).origin === location.origin &&
       new URL(document.referrer).pathname.indexOf("/modulos/") === 0;
   } catch (e) {}
-  var reduzirMovimento = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (deDentro || reduzirMovimento) { intro.parentNode.removeChild(intro); return; }
+  if (deDentro && !forcar) { saltarJa("navegação vinda de um módulo da própria Central"); return; }
 
-  intro.addEventListener("click", sair);
-  document.addEventListener("keydown", function (e) { if (!saiu) sair(); }, { once: true });
-  video.addEventListener("ended", sair);
+  var reduzirMovimento = false;
+  try { reduzirMovimento = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+
+  intro.addEventListener("click", function () { sair("saltada com um clique"); });
+  document.addEventListener("keydown", function () { if (!saiu) sair("saltada com uma tecla"); }, { once: true });
+
+  if (reduzirMovimento && RESPEITAR_REDUZIR_ANIMACOES && !forcar) {
+    // Abertura parada: fica o fotograma do vídeo (atributo poster) e o nome,
+    // durante pouco tempo. Respeita a preferência do sistema sem deixar a
+    // marca de fora por completo.
+    diag.mostrada = true;
+    video.removeAttribute("autoplay");
+    setTimeout(function () { sair("mostrada parada (o sistema pede menos animações)"); }, 2200);
+    return;
+  }
+
+  video.addEventListener("playing", function () { arrancou = true; diag.mostrada = true; });
+  video.addEventListener("ended", function () { sair("vídeo chegou ao fim"); });
   // Rede lenta, formato recusado, autoplay bloqueado: seja qual for o
   // motivo, o ecrã de entrada não pode ficar refém do vídeo. O `true` (fase
   // de captura) é o que apanha também os erros dos <source>, que não sobem
   // pela árvore como os outros eventos.
-  video.addEventListener("error", sair, true);
-  setTimeout(function () { if (video.currentTime === 0 && !saiu) sair(); }, 1800);
-  setTimeout(sair, 7000);
+  // Ficheiro em falta no site (o caso real: a pasta assets/hygea não tinha
+  // sido publicada) ou formato não suportado. Em vez de sair a correr, deixa
+  // o nome no ecrã um instante — fica uma abertura sóbria em vez de um
+  // piscar de olhos. O motivo fica registado, e a página
+  // /diagnostico-hygea.html diz logo qual dos dois é.
+  video.addEventListener("error", function () {
+    diag.mostrada = true;
+    setTimeout(function () { sair("o vídeo não foi encontrado ou não é legível neste browser — ver /diagnostico-hygea.html"); }, 1400);
+  }, true);
+
+  // Antes desistia-se ao fim de 1,8s se o vídeo ainda não tivesse começado.
+  // Num computador mais lento, ou com a internet da farmácia carregada, é
+  // tempo a menos — e a apresentação "desaparecia" sem explicação. Agora
+  // espera-se bem mais, e entretanto já se vê o fotograma de abertura com o
+  // nome, por isso a espera não é um ecrã em branco.
+  setTimeout(function () { if (!arrancou && !saiu) sair("o vídeo não chegou a arrancar a tempo (rede lenta ou reprodução automática bloqueada)"); }, 4000);
+  setTimeout(function () { sair("tempo máximo da apresentação"); }, 10000);
+
   var p = video.play();
-  if (p && typeof p.catch === "function") p.catch(sair);
+  if (p && typeof p.catch === "function") {
+    p.catch(function (err) {
+      // Reprodução automática recusada (política do browser ou regra da
+      // empresa): fica a imagem parada uns instantes em vez de nada.
+      diag.mostrada = true;
+      setTimeout(function () { sair("reprodução automática bloqueada pelo browser (" + (err && err.name ? err.name : "sem detalhe") + ") — mostrada parada"); }, 2200);
+    });
+  }
 })();
 </script>
 
@@ -544,9 +631,25 @@
     document.body.appendChild(d);
     document.getElementById("falhaArranqueBtn").addEventListener("click", function () { location.reload(); });
   }
-  // falhas de carregamento de <script>/<link> (ex.: assets/styles.css ou
+  // Falhas de carregamento de <script>/<link> (ex.: assets/styles.css ou
   // src/app.js a dar 404) não fazem "bubble" — só se apanham em captura.
-  window.addEventListener("error", function () { centralMostrarFalhaArranque(); }, true);
+  //
+  // Ponto 60 (continuação): este ouvinte reagia a QUALQUER erro de recurso,
+  // de qualquer elemento. Enquanto a página só tinha scripts e folhas de
+  // estilo, dava no mesmo; a partir do momento em que passou a haver um
+  // <video> (a apresentação) isso virou um problema a sério: bastava o
+  // ficheiro de vídeo faltar no site — exatamente o que aconteceu ao
+  // publicar sem a pasta assets/hygea — para a app anunciar "A aplicação
+  // não carregou" e tapar tudo, quando na verdade estava perfeitamente boa.
+  // Só um script ou uma folha de estilo em falta é que impedem mesmo a
+  // Central de funcionar; uma imagem ou um vídeo, não.
+  window.addEventListener("error", function (e) {
+    var alvo = e && e.target;
+    if (!alvo || alvo === window) return; // exceções de execução: ver window.onerror abaixo
+    var tag = (alvo.tagName || "").toLowerCase();
+    var essencial = tag === "script" || (tag === "link" && alvo.rel === "stylesheet");
+    if (essencial) centralMostrarFalhaArranque();
+  }, true);
   // exceções não tratadas durante a execução do módulo (ex.: um import
   // interno de src/app.js em falta) chegam à janela sem captura.
   window.onerror = function () { centralMostrarFalhaArranque(); };
