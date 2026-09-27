@@ -83,13 +83,15 @@
  * salta-a. A página /diagnostico-hygea.html explica tudo em português.
  */
 (function () {
-  // Se o computador pede menos animações (no Windows: Definições →
-  // Acessibilidade → Efeitos visuais → Efeitos de animação desligados), a
-  // abertura aparece PARADA: o fotograma inicial e o nome, durante 2s. É a
-  // razão mais provável para a apresentação "não aparecer" numas máquinas e
-  // aparecer noutras. Pondo isto a `false`, o vídeo passa a tocar em todas,
-  // ignorando essa preferência do sistema — uma linha, decisão do Ivo.
-  var RESPEITAR_REDUZIR_ANIMACOES = true;
+  // Muitos PCs da farmácia têm os efeitos de animação do Windows desligados
+  // (Definições → Acessibilidade → Efeitos visuais), e nesses o browser pede
+  // "menos movimento". Enquanto isto esteve a `true`, a apresentação
+  // aparecia PARADA nessas máquinas — o fotograma inicial e depois a app —
+  // que foi exatamente o que o Ivo descreveu. Decisão dele: a apresentação é
+  // a abertura da marca e deve tocar em todos os computadores, por isso
+  // ignora-se aqui essa preferência. São 5 segundos, sem som e sem flashes;
+  // quem quiser voltar a respeitá-la muda esta linha para `true`.
+  var RESPEITAR_REDUZIR_ANIMACOES = false;
 
   var intro = document.getElementById("hygeaIntro");
   if (!intro) return;
@@ -144,7 +146,21 @@
   var reduzirMovimento = false;
   try { reduzirMovimento = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
 
-  intro.addEventListener("click", function () { sair("saltada com um clique"); });
+  // Se a reprodução automática for recusada, o primeiro toque PASSA A
+  // ARRANCAR o vídeo em vez de saltar a apresentação (um toque é o gesto
+  // que os browsers exigem nesses casos); só o toque seguinte é que salta.
+  var esperaGesto = false;
+  var temporizadorParado = null;
+  intro.addEventListener("click", function () {
+    if (esperaGesto && !arrancou) {
+      esperaGesto = false;
+      clearTimeout(temporizadorParado);
+      var p2 = video.play();
+      if (p2 && typeof p2.catch === "function") p2.catch(function () { sair("o browser recusou reproduzir o vídeo mesmo depois de um toque"); });
+      return;
+    }
+    sair("saltada com um clique");
+  });
   document.addEventListener("keydown", function () { if (!saiu) sair("saltada com uma tecla"); }, { once: true });
 
   if (reduzirMovimento && RESPEITAR_REDUZIR_ANIMACOES && !forcar) {
@@ -185,9 +201,15 @@
   if (p && typeof p.catch === "function") {
     p.catch(function (err) {
       // Reprodução automática recusada (política do browser ou regra da
-      // empresa): fica a imagem parada uns instantes em vez de nada.
+      // empresa): fica a imagem parada uns instantes, com o toque a poder
+      // arrancar o vídeo (ver o ouvinte de clique acima).
+      esperaGesto = true;
+      var hint = document.getElementById("hygeaIntroSaltar");
+      if (hint) hint.textContent = "toque para ver a apresentação";
       diag.mostrada = true;
-      setTimeout(function () { sair("reprodução automática bloqueada pelo browser (" + (err && err.name ? err.name : "sem detalhe") + ") — mostrada parada"); }, 2200);
+      temporizadorParado = setTimeout(function () {
+        sair("reprodução automática bloqueada pelo browser (" + (err && err.name ? err.name : "sem detalhe") + ") — mostrada parada");
+      }, 3500);
     });
   }
 })();

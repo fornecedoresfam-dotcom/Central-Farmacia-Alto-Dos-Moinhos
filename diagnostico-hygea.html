@@ -56,6 +56,7 @@
 
   <div class="veredito espera" id="veredito"><b>A verificar…</b><span>Um momento.</span></div>
 
+  <section><h2>A apresentação, neste computador</h2><div id="secIntro"></div></section>
   <section><h2>Ficheiros publicados no site</h2><div id="secFicheiros"></div></section>
   <section><h2>Este browser e este computador</h2><div id="secBrowser"></div></section>
   <section><h2>Versão instalada (cache offline)</h2><div id="secCache"></div></section>
@@ -69,7 +70,54 @@
 </div>
 
 <script>
-var R = { ficheiros: [], browser: [], cache: [] };
+var R = { intro: [], ficheiros: [], browser: [], cache: [] };
+
+/**
+ * Corre a apresentação A SÉRIO, aqui ao lado: abre a Central numa moldura
+ * escondida com "?intro=1" e lê o que ela própria registou sobre a abertura
+ * (window.HYGEA_INTRO). É a diferença entre supor e saber — a app diz se a
+ * apresentação foi mostrada, se o vídeo chegou a arrancar, e o motivo exato
+ * por que terminou.
+ */
+async function verificarApresentacao() {
+  var problemas = 0;
+  var frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;left:-9999px;top:0;width:900px;height:600px;border:0;";
+  frame.src = "/?intro=1&d=" + Date.now();
+  document.body.appendChild(frame);
+
+  var estado = await new Promise(function (resolve) {
+    var tentativas = 0;
+    var t = setInterval(function () {
+      tentativas++;
+      var d = null;
+      try { d = frame.contentWindow && frame.contentWindow.HYGEA_INTRO; } catch (e) {}
+      if (d && d.motivo) { clearInterval(t); resolve(d); }
+      else if (tentativas > 60) { clearInterval(t); resolve(d || null); } // 12s
+    }, 200);
+  });
+  try { frame.remove(); } catch (e) {}
+
+  if (!estado) {
+    problemas++;
+    linha("secIntro", "❌", "A apresentação não chegou a correr",
+      "a página inicial publicada pode ainda ser a antiga (sem apresentação) — confirme a linha \"Página inicial publicada\" mais abaixo");
+    R.intro.push("sem HYGEA_INTRO (index antigo?)");
+    return problemas;
+  }
+
+  var tocou = estado.arrancou === true;
+  if (!tocou) problemas++;
+  linha("secIntro", tocou ? "✅" : "❌", tocou ? "O vídeo de abertura tocou" : "O vídeo de abertura NÃO chegou a tocar",
+    "motivo registado pela própria app: " + estado.motivo);
+  R.intro.push("arrancou=" + estado.arrancou + " | mostrada=" + estado.mostrada + " | motivo=" + estado.motivo);
+  if (estado.formatos) {
+    linha("secIntro", "ℹ️", "Formatos aceites por este browser",
+      "WebM: " + estado.formatos.webm + " · MP4: " + estado.formatos.mp4);
+  }
+  return problemas;
+}
 
 function linha(alvo, sinal, titulo, detalhe) {
   var div = document.createElement("div");
@@ -100,11 +148,26 @@ async function verificarFicheiros() {
       var res = await fetch(f.url + "?d=" + Date.now(), { cache: "no-store" });
       var buf = res.ok ? await res.arrayBuffer() : null;
       var tam = buf ? buf.byteLength : 0;
-      var bom = res.ok && tam >= f.minimo;
+      // Caso clássico e traiçoeiro: o ficheiro "existe" e responde 200, mas o
+      // que lá está é um APONTADOR do Git LFS (umas centenas de bytes de
+      // texto) em vez do vídeo. Acontece quando o repositório tem os
+      // binários em LFS e o alojamento não os resolve — e dá exatamente a
+      // sensação de "o GitHub está a bloquear o vídeo".
+      var apontadorLfs = false;
+      if (buf && tam < 2000) {
+        try {
+          var inicio = new TextDecoder().decode(buf.slice(0, 120));
+          apontadorLfs = inicio.indexOf("git-lfs.github.com") !== -1 || inicio.indexOf("oid sha256:") !== -1;
+        } catch (e2) {}
+      }
+      var bom = res.ok && tam >= f.minimo && !apontadorLfs;
       if (!bom) faltam++;
       linha("secFicheiros", bom ? "✅" : "❌", f.nome,
-        bom ? kb(tam) + " · " + (res.headers.get("content-type") || "") : "NÃO ESTÁ PUBLICADO (resposta " + res.status + ")");
-      R.ficheiros.push(f.nome + ": " + (bom ? "ok " + kb(tam) : "FALTA (" + res.status + ")"));
+        bom ? kb(tam) + " · " + (res.headers.get("content-type") || "")
+          : apontadorLfs ? "está publicado um APONTADOR do Git LFS em vez do ficheiro (" + tam + " bytes). O repositório está a guardar os binários em Git LFS — é preciso tirá-los de LFS ou ativar o suporte de LFS no alojamento."
+          : res.ok ? "o ficheiro publicado é pequeno de mais (" + tam + " bytes) — subiu incompleto"
+          : "NÃO ESTÁ PUBLICADO (resposta " + res.status + ")");
+      R.ficheiros.push(f.nome + ": " + (bom ? "ok " + kb(tam) : apontadorLfs ? "APONTADOR LFS" : "FALTA (" + res.status + ", " + tam + "B)"));
     } catch (e) {
       faltam++;
       linha("secFicheiros", "❌", f.nome, "não foi possível obter: " + e.message);
@@ -141,9 +204,9 @@ async function verificarBrowser() {
   var reduzir = false;
   try { reduzir = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
   window.__reduzirAnimacoes = reduzir;
-  linha("secBrowser", reduzir ? "⚠️" : "✅", "Animações do sistema",
-    reduzir ? 'este computador tem "reduzir animações" LIGADO — a apresentação aparece parada e mais curta (no Windows: Definições → Acessibilidade → Efeitos visuais → Efeitos de animação)'
-            : "normais — a apresentação toca a mexer");
+  linha("secBrowser", "✅", "Animações do sistema",
+    reduzir ? 'este computador tem "reduzir animações" ligado (Windows: Definições → Acessibilidade → Efeitos visuais) — a apresentação da HYGEA toca na mesma, é a única animação que ignora essa definição'
+            : "normais");
   R.browser.push("reduzir animações: " + reduzir);
 
   // reprodução automática, com o ficheiro verdadeiro
@@ -208,7 +271,8 @@ function mostrarRelatorio() {
   var t = document.getElementById("relatorio");
   t.style.display = "block";
   t.value = "DIAGNÓSTICO CENTRAL HYGEA — " + new Date().toLocaleString("pt-PT") + "\n" +
-    "site: " + location.origin + "\n\nFICHEIROS\n- " + R.ficheiros.join("\n- ") +
+    "site: " + location.origin + "\n\nAPRESENTAÇÃO\n- " + R.intro.join("\n- ") +
+    "\n\nFICHEIROS\n- " + R.ficheiros.join("\n- ") +
     "\n\nBROWSER\n- " + R.browser.join("\n- ") +
     "\n\nCACHE\n- " + R.cache.join("\n- ");
   t.select();
@@ -219,7 +283,11 @@ function mostrarRelatorio() {
   var faltam = await verificarFicheiros();
   var browser = await verificarBrowser();
   var cache = await verificarCache();
-  if (faltam > 0) {
+  var intro = await verificarApresentacao();
+  if (R.ficheiros.some(function (l) { return l.indexOf("APONTADOR LFS") !== -1; })) {
+    veredito("mau", "Encontrado: os vídeos estão em Git LFS",
+      'O site responde a esses endereços, mas o que está publicado é um apontador de texto do Git LFS, não o vídeo — por isso o browser não consegue reproduzir nada. É preciso guardar os ficheiros no repositório de forma normal (sem LFS) ou ativar o suporte de LFS no alojamento.');
+  } else if (faltam > 0) {
     veredito("mau", "Faltam ficheiros no site publicado",
       "A apresentação não pode aparecer porque o que ela precisa não está publicado neste endereço. Veja acima o que está a vermelho e volte a publicar essa parte (a pasta assets/hygea inteira e o index.html novo).");
   } else if (browser > 0) {
@@ -228,15 +296,12 @@ function mostrarRelatorio() {
   } else if (cache > 0) {
     veredito("espera", "Está tudo publicado, mas este computador tem uma versão antiga guardada",
       "Feche todos os separadores da Central e volte a abri-la. Se persistir, abra com Ctrl+F5.");
-  } else if (window.__reduzirAnimacoes) {
-    veredito("espera", 'Encontrado: este computador tem "reduzir animações" ligado',
-      'É por isso que aqui a abertura não toca como nos outros — fica a imagem parada com o nome, uns segundos. ' +
-      'Ou se liga outra vez os efeitos de animação no Windows (Definições → Acessibilidade → Efeitos visuais), ' +
-      'ou se muda a app para tocar o vídeo mesmo assim, em todos os computadores. Para confirmar agora que o vídeo ' +
-      'em si funciona aqui, use o botão "Abrir a Central e forçar a apresentação".');
+  } else if (intro > 0) {
+    veredito("mau", "Os ficheiros estão bem, mas a apresentação não tocou aqui",
+      "Veja em cima, na primeira secção, o motivo que a própria aplicação registou — é a explicação exata do que aconteceu neste computador.");
   } else {
     veredito("bom", "Está tudo bem deste lado",
-      "Os ficheiros estão publicados, o browser lê-os e a reprodução automática funciona. Se mesmo assim não vir a apresentação ao abrir a Central, é porque entrou nela a partir de um módulo (nesse caso é saltada de propósito) — use o botão abaixo para a forçar.");
+      "Os ficheiros estão publicados, o browser lê-os e a apresentação tocou mesmo quando a testámos aqui. Se não a vir ao abrir a Central, é porque entrou a partir de um módulo (nesse caso é saltada de propósito) — use o botão abaixo para a forçar.");
   }
 })();
 </script>

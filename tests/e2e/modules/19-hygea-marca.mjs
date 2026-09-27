@@ -107,19 +107,24 @@ export async function run(browser) {
   }
 
   // ---------- 2c. computador com "reduzir animações" ligado ----------
+  // Foi o que travava a apresentação nos PCs da farmácia (efeitos de
+  // animação do Windows desligados). Decisão do Ivo: a abertura da marca
+  // toca em todos os computadores.
   {
     const ctx = await browser.newContext({ reducedMotion: 'reduce' });
     const page = await ctx.newPage();
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(400);
-    ok('Apresentação: num computador que pede menos animações, continua a haver abertura (parada), em vez de não aparecer nada',
-      (await page.locator('#hygeaIntro').count()) === 1 &&
-      (await page.locator('#hygeaIntroNome').isVisible()), '');
-    await page.waitForSelector('#hygeaIntro', { state: 'detached', timeout: 6000 });
-    ok('Apresentação: essa abertura parada é curta e dá lugar ao ecrã de entrada',
-      await page.locator('#loginGate').isVisible(), '');
+    await page.waitForTimeout(1300);
+    const v = await page.evaluate(() => {
+      const el = document.getElementById('hygeaIntroVideo');
+      return el ? { t: el.currentTime, pausado: el.paused } : null;
+    });
+    ok('Apresentação: num computador com "reduzir animações" ligado, o vídeo TOCA na mesma (era isto que faltava na farmácia)',
+      !!v && v.t > 0.2 && !v.pausado, JSON.stringify(v));
+    await page.waitForSelector('#hygeaIntro', { state: 'detached', timeout: 12000 });
     const motivo = await page.evaluate(() => (window.HYGEA_INTRO || {}).motivo || '');
-    ok('Apresentação: o motivo fica registado em vez de desaparecer em silêncio', /anima/i.test(motivo), motivo);
+    ok('Apresentação: e termina normalmente, no fim do vídeo', /fim/i.test(motivo), motivo);
+    ok('Apresentação: a seguir fica o ecrã de entrada', await page.locator('#loginGate').isVisible(), '');
     await ctx.close();
   }
 
@@ -135,6 +140,9 @@ export async function run(browser) {
     ok('Diagnóstico: a página dá um veredito em português sobre este computador',
       veredito.length > 20 && /veredito/.test(classe), veredito.replace(/\n/g, ' ').slice(0, 120));
     ok('Diagnóstico: com tudo publicado, o veredito é positivo', /bom/.test(classe), classe);
+    const linhaIntro = await page.locator('#secIntro').innerText();
+    ok('Diagnóstico: a página corre a apresentação de verdade e diz se o vídeo tocou (deixa de ser preciso adivinhar)',
+      /tocou/i.test(linhaIntro) && /motivo registado/i.test(linhaIntro), linhaIntro.replace(/\n/g, ' ').slice(0, 130));
     const linhasVermelhas = await page.locator('.linha .sinal', { hasText: '❌' }).count();
     ok('Diagnóstico: nenhum ficheiro dado como em falta quando está tudo publicado', linhasVermelhas === 0, `${linhasVermelhas} linhas a vermelho`);
     ok('Diagnóstico: página sem erros de consola', erros.length === 0, erros.join(' | '));
@@ -147,9 +155,26 @@ export async function run(browser) {
     await p2.goto(`${BASE}/diagnostico-hygea.html`, { waitUntil: 'domcontentloaded' });
     await p2.waitForFunction(() => !/A verificar/.test(document.getElementById('veredito').textContent), null, { timeout: 20000 });
     const v2 = await p2.locator('#veredito').innerText();
-    ok('Diagnóstico: num computador com "reduzir animações" ligado, o veredito aponta essa causa em vez de dizer que está tudo bem',
-      /anima/i.test(v2) && /Encontrado/i.test(v2), v2.replace(/\n/g, ' ').slice(0, 140));
+    ok('Diagnóstico: com "reduzir animações" ligado o veredito continua positivo, porque a apresentação passou a tocar também aí',
+      /bom/.test(await p2.locator('#veredito').getAttribute('class')), v2.replace(/\n/g, ' ').slice(0, 140));
     await ctx2.close();
+
+    // Caso em que o site responde 200 mas serve um apontador do Git LFS em
+    // vez do vídeo — o cenário que mais se parece com "o GitHub está a
+    // bloquear o vídeo", e que de outra forma passaria por "ficheiro ok".
+    const ctx3 = await browser.newContext();
+    const ponteiroLfs = 'version https://git-lfs.github.com/spec/v1\noid sha256:aaaa\nsize 921584\n';
+    // o "*" final é preciso: a página de diagnóstico pede os ficheiros com
+    // "?d=<momento>" para fugir à cache, e sem ele o padrão não apanhava nada
+    await ctx3.route('**/assets/hygea/*.webm*', (r) => r.fulfill({ status: 200, contentType: 'video/webm', body: ponteiroLfs }));
+    await ctx3.route('**/assets/hygea/*.mp4*', (r) => r.fulfill({ status: 200, contentType: 'video/mp4', body: ponteiroLfs }));
+    const p3 = await ctx3.newPage();
+    await p3.goto(`${BASE}/diagnostico-hygea.html`, { waitUntil: 'domcontentloaded' });
+    await p3.waitForFunction(() => !/A verificar/.test(document.getElementById('veredito').textContent), null, { timeout: 25000 });
+    const v3 = await p3.locator('#veredito').innerText();
+    ok('Diagnóstico: quando o site serve um apontador do Git LFS em vez do vídeo, a página diz exatamente isso',
+      /LFS/i.test(v3), v3.replace(/\n/g, ' ').slice(0, 140));
+    await ctx3.close();
   }
 
   // ---------- 3. ícone do atalho (favicon/manifesto) ----------
