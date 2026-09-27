@@ -243,14 +243,14 @@ export const TAREFAS_CATALOGO = [
   // ROI (tarefa desconhecida). Valores em linha com o par equivalente já
   // existente em "devolucoes-armazenistas".
   { modulo: "catalogo-produtos", tarefaId: "restaurar_produto", nome: "Restaurar produto removido do catálogo", tempoManualSeg: 60, tempoCentralSeg: 10 },
-  // ------------------------------------------------------------- FARMA IA
+  // ------------------------------------------------------------- HYGEA IA
   // (ponto 25): as 3 tarefas rastreáveis do novo módulo — a estimativa
   // "manual" aqui é o tempo que levaria chegar à mesma conclusão revendo à
   // mão os dados de cada módulo (validades, pedidos pendentes, contagens),
-  // não uma ação que já existisse antes da FARMA IA.
-  { modulo: "farma-ia", tarefaId: "ver_alertas", nome: "Rever Alertas & Insights da FARMA IA", tempoManualSeg: 300, tempoCentralSeg: 15 },
-  { modulo: "farma-ia", tarefaId: "perguntar", nome: "Perguntar ao assistente da FARMA IA", tempoManualSeg: 120, tempoCentralSeg: 10 },
-  { modulo: "farma-ia", tarefaId: "ver_oportunidades", nome: "Rever oportunidades de automação da FARMA IA", tempoManualSeg: 180, tempoCentralSeg: 15 }
+  // não uma ação que já existisse antes da HYGEA IA.
+  { modulo: "hygea-ia", tarefaId: "ver_alertas", nome: "Rever Alertas & Insights da HYGEA IA", tempoManualSeg: 300, tempoCentralSeg: 15 },
+  { modulo: "hygea-ia", tarefaId: "perguntar", nome: "Perguntar ao assistente da HYGEA IA", tempoManualSeg: 120, tempoCentralSeg: 10 },
+  { modulo: "hygea-ia", tarefaId: "ver_oportunidades", nome: "Rever oportunidades de automação da HYGEA IA", tempoManualSeg: 180, tempoCentralSeg: 15 }
 ];
 
 /** Nomes amigáveis dos módulos — mesmos usados em MODULOS_ATALHOS (src/domain.js)
@@ -262,10 +262,30 @@ export const MODULOS_NOMES = {
   aue: "Pedidos AUE", stocks: "Stocks Errados", reservas: "Reservas", medela: "Aluguer Medela",
   "conversor-pdf": "Conversor de PDF", "devolucao-frio": "Devolução de Frio",
   "mapa-cardiovascular": "Mapa Cardiovascular", "devolucoes-armazenistas": "Devoluções a Armazenistas",
-  "catalogo-produtos": "Catálogo de Produtos", "farma-ia": "FARMA IA"
+  "catalogo-produtos": "Catálogo de Produtos", "hygea-ia": "HYGEA IA"
 };
 
 export function chaveTarefa(modulo, tarefaId) { return modulo + "." + tarefaId; }
+
+/**
+ * Ponto 60 (FARMA → HYGEA): módulos que já existiam com outro id. O histórico
+ * de uso guardado no servidor tem as chaves tal como foram escritas NA ALTURA
+ * (ex.: "farma-ia.perguntar"), e esse histórico nunca é reescrito — seria
+ * arriscar perder meses de dados reais só por causa de uma mudança de nome.
+ * Em vez disso, normaliza-se a chave na LEITURA: o que foi registado com o id
+ * antigo continua a contar, agregado no módulo novo, como se sempre tivesse
+ * tido este nome.
+ */
+export const MODULOS_RENOMEADOS = { "farma-ia": "hygea-ia" };
+
+/** "farma-ia.perguntar" -> "hygea-ia.perguntar" (qualquer outra chave fica igual). */
+export function normalizarChaveUso(chave) {
+  const ponto = String(chave || "").indexOf(".");
+  if (ponto < 0) return chave;
+  const modulo = chave.slice(0, ponto);
+  const novo = MODULOS_RENOMEADOS[modulo];
+  return novo ? novo + chave.slice(ponto) : chave;
+}
 
 let indice = null;
 function indiceCatalogo() {

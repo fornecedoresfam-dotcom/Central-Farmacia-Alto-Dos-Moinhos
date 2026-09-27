@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão de PIM · Central Operacional</title>
+<title>Gestão de PIM · Central HYGEA</title>
+<link rel="icon" href="/assets/hygea/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/hygea/hygea-icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/hygea/hygea-icon-192.png">
+<link rel="apple-touch-icon" href="/assets/hygea/hygea-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Central HYGEA">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/module-chrome.css">
@@ -385,6 +390,15 @@
   .file-drop-zone{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;font-size:12.5px;color:var(--ink-soft);cursor:pointer;background:var(--grey-bg);}
   .file-drop-zone:hover{border-color:var(--brand-mid);}
 
+  /* ---------- Ponto 59: aba "Documentos" reutilizável (ver src/ui/documentos-modulo.js) ---------- */
+  .doc-list{display:flex;flex-direction:column;gap:10px;}
+  .doc-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);}
+  .doc-row .dicon{width:38px;height:38px;border-radius:9px;background:var(--grey-bg);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+  .doc-row .dinfo{flex:1;min-width:0;}
+  .doc-row .dinfo b{display:block;font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .doc-row .dinfo span{font-size:11.5px;color:var(--ink-soft);}
+  .doc-row .dactions{display:flex;gap:6px;flex-shrink:0;}
+
   @media (max-width:720px){
     .receita-codes-grid{grid-template-columns:1fr;}
     .form-grid{grid-template-columns:1fr;}
@@ -397,7 +411,7 @@
 <body>
 
 <div class="app" id="appRoot">
-  <div class="mc-standalone-bar" id="mcStandaloneBar"><a href="/">← Voltar à Central Operacional</a></div>
+  <div class="mc-standalone-bar" id="mcStandaloneBar"><a href="/">← Voltar à Central HYGEA</a></div>
   <a class="module-back" href="/" onclick="event.preventDefault(); voltarACentral();">← Voltar à Central</a>
 
   <div class="mc-module-head">
@@ -477,6 +491,12 @@
     <div id="viewConfig" style="display:none;">
       <div class="topbar"><h1>Configurações</h1></div>
       <div id="configContent"></div>
+    </div>
+
+    <!-- ============ DOCUMENTOS (ponto 59) ============ -->
+    <div id="viewDocumentos" style="display:none;">
+      <div class="topbar"><h1>Documentos</h1></div>
+      <div id="documentosModuloContent"></div>
     </div>
   </main>
 </div>
@@ -619,6 +639,7 @@
 import { aoExpirarSessao, makeDataStore } from "../src/db.js";
 import { getToken, limparSessao, getPerfil } from "../src/authClient.js";
 import { carregarCatalogoEfetivo } from "../src/produtosCatalogo.js";
+import { criarAbaDocumentosModulo } from "../src/ui/documentos-modulo.js";
 
 function voltarACentral(){
   window.top.location.href = "/";
@@ -633,6 +654,14 @@ aoExpirarSessao(() => {
 if(!getToken()) voltarACentral();
 
 const dataStore = makeDataStore();
+
+// Ponto 59: aba "Documentos" independente deste módulo — ver
+// src/ui/documentos-modulo.js (chave/prefixo únicos por módulo, nunca
+// partilhados com Manipulados, AUE, nem com o módulo geral "Documentos").
+const abaDocumentosPim = criarAbaDocumentosModulo({
+  dataStore, chaveConfig: "documentos_pim", prefixoAsset: "documento_modulo_pim",
+  containerId: "documentosModuloContent", showToast: (msg) => showToast(msg)
+});
 
 /* Cache do estado partilhado só para efeitos de identidade visual (nome e
    logótipo da farmácia) — atualizada sempre que fetchEstado() é chamado.
@@ -1248,13 +1277,14 @@ function renderBottomBar(alertCount){
     {id:'calendario', icon:'📅', label:'Calendário', onSelect:()=>switchView('calendario')},
     {id:'alertas', icon:'🔔', label: alertCount>0 ? `Alertas (${alertCount})` : 'Alertas', onSelect:()=>switchView('alertas')},
     {id:'relatorios', icon:'📋', label:'Relatórios', onSelect:()=>switchView('relatorios')},
-    {id:'config', icon:'⚙️', label:'Configurações', onSelect:()=>switchView('config')}
+    {id:'config', icon:'⚙️', label:'Configurações', onSelect:()=>switchView('config')},
+    {id:'documentos', icon:'🗂️', label:'Documentos', onSelect:()=>switchView('documentos')}
   ];
   mcBar = window.ModuleChrome.mountBottomBar(items, {activeId: currentView==='utenteDetalhe' ? 'utentes' : currentView});
 }
 function switchView(name, opt){
   currentView = name;
-  const views = ['inicio','utentes','utenteDetalhe','calendario','alertas','relatorios','config'];
+  const views = ['inicio','utentes','utenteDetalhe','calendario','alertas','relatorios','config','documentos'];
   for(const v of views){
     const el = document.getElementById('view'+v.charAt(0).toUpperCase()+v.slice(1));
     if(el) el.style.display = (v===name) ? '' : 'none';
@@ -1267,6 +1297,7 @@ function switchView(name, opt){
   else if(name==='alertas') renderAlertas();
   else if(name==='relatorios') renderRelatorios();
   else if(name==='config') renderConfig();
+  else if(name==='documentos') abaDocumentosPim.render();
 }
 
 /* ===================== HOME ===================== */
@@ -3789,6 +3820,7 @@ window.toggleMedAtivo = toggleMedAtivo;
 window.toggleMedScanBox = toggleMedScanBox;
 window.toggleSidebar = toggleSidebar;
 window.updateEventChecklistField = updateEventChecklistField;
+Object.assign(window, abaDocumentosPim.handlers); // ponto 59: docModTriggerUpload/docModHandleUpload/docModDownload/docModRename/docModDelete
 </script>
 </body>
 </html>

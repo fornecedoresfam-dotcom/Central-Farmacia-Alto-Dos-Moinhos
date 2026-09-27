@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Documentos · Central Operacional</title>
+<title>Documentos · Central HYGEA</title>
+<link rel="icon" href="/assets/hygea/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/hygea/hygea-icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/hygea/hygea-icon-192.png">
+<link rel="apple-touch-icon" href="/assets/hygea/hygea-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Central HYGEA">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/module-chrome.css">
@@ -315,7 +320,7 @@
 </head>
 <body>
 
-<div class="mc-standalone-bar" id="mcStandaloneBar"><a href="/">← Voltar à Central Operacional</a></div>
+<div class="mc-standalone-bar" id="mcStandaloneBar"><a href="/">← Voltar à Central HYGEA</a></div>
 <a class="module-back" href="/" onclick="event.preventDefault(); voltarACentral();">← Voltar à Central</a>
 
 <div class="app" id="appRoot">
@@ -2663,18 +2668,18 @@ let etiquetaState = {
   margemTopo:10, margemEsquerda:10, espHoriz:2, espVert:2,
   logoLayer:{ xPct:4, yPct:5, wPct:26, hPct:22 },
   textLayer:{ xPct:4, yPct:30, wPct:92, hPct:64, fontSize:9.5 },
-  preparadoPelaFarma:false
+  preparadoPelaHygea:false
 };
 
-/* ponto 31: se a FARMA tiver preparado uma etiqueta (ver src/farmaAcoes.js,
+/* ponto 31: se a HYGEA tiver preparado uma etiqueta (ver src/hygeaAcoes.js,
  * ação "documentos.preparar_etiqueta"), fica guardada em
- * config.farmaEtiquetaPendente — aplica-se aqui ao abrir o módulo, para o
+ * config.hygeaEtiquetaPendente — aplica-se aqui ao abrir o módulo, para o
  * operador rever e imprimir. NUNCA imprime sozinha. Fica persistida (não se
  * apaga já ao abrir) para sobreviver a uma navegação/recarregamento antes de
  * o operador chegar a imprimir — só é limpa ao imprimir ou ao descartar. */
-async function aplicarEtiquetaPendenteDaFarma(){
+async function aplicarEtiquetaPendenteDaHygea(){
   try{
-    const pendente = await dataStore.getConfig('farmaEtiquetaPendente');
+    const pendente = await dataStore.getConfig('hygeaEtiquetaPendente');
     if(!pendente || typeof pendente !== 'object') return;
     Object.assign(etiquetaState, {
       tipo: pendente.tipo || etiquetaState.tipo,
@@ -2683,23 +2688,23 @@ async function aplicarEtiquetaPendenteDaFarma(){
       produtoTester: pendente.produtoTester || '', lote: pendente.lote || '', validade: pendente.validade || '',
       dosagem: pendente.dosagem || '', posologia: pendente.posologia || '',
       quantidade: pendente.quantidade || etiquetaState.quantidade,
-      preparadoPelaFarma: true,
-      // "produtoNome" da FARMA é só texto livre (não vem com o código do
+      preparadoPelaHygea: true,
+      // "produtoNome" da HYGEA é só texto livre (não vem com o código do
       // catálogo) — fica só como sugestão no aviso; o campo de produto
       // ligado ao catálogo (produtoMed/produtoMedCodigo) fica por preencher
       // de propósito, para o operador confirmar/escolher o produto certo em
-      // vez de a FARMA adivinhar uma correspondência no catálogo.
+      // vez de a HYGEA adivinhar uma correspondência no catálogo.
       sugestaoProdutoNome: pendente.tipo === 'medicamento' ? (pendente.produtoNome || '') : '',
     });
   }catch(e){ /* sem pendente ou falha a ler — segue com o estado normal */ }
 }
-async function descartarSugestaoFarma(){
-  etiquetaState.preparadoPelaFarma = false;
-  try{ await dataStore.setConfig('farmaEtiquetaPendente', null); }catch(e){ /* ignora */ }
+async function descartarSugestaoHygea(){
+  etiquetaState.preparadoPelaHygea = false;
+  try{ await dataStore.setConfig('hygeaEtiquetaPendente', null); }catch(e){ /* ignora */ }
   renderEtiquetaForm();
 }
 async function initEtiquetaModule(){
-  await aplicarEtiquetaPendenteDaFarma();
+  await aplicarEtiquetaPendenteDaHygea();
   renderEtiquetaForm();
   renderEtiquetaCanvas();
   renderEtqMedList();
@@ -2750,14 +2755,14 @@ function renderEtiquetaForm(){
       <div class="field-block"><label>Posologia (opcional)</label><input type="text" placeholder="Ex.: 1 comp. 3x/dia" value="${escapeHtml(s.posologia)}" oninput="setEtiquetaLight('posologia', this.value)"></div>`;
   }
   const isLabelPrinter = s.printMode === 'impressora';
-  const avisoFarma = s.preparadoPelaFarma ? `
+  const avisoHygea = s.preparadoPelaHygea ? `
     <div class="field-block" style="background:#eef1fb;border:1px solid #c9d2f2;border-radius:8px;padding:10px 12px;">
-      🧠 <b>Rótulo preparado pela FARMA</b> — reveja os dados abaixo antes de imprimir.
+      🧠 <b>Rótulo preparado pela HYGEA</b> — reveja os dados abaixo antes de imprimir.
       ${s.sugestaoProdutoNome ? `<br>Produto sugerido: <b>${escapeHtml(s.sugestaoProdutoNome)}</b> — pesquise-o e selecione-o na lista, para confirmar que é o produto certo.` : ''}
-      <br><button type="button" class="btn-secondary" style="margin-top:6px;padding:4px 10px;font-size:12px;" onclick="descartarSugestaoFarma()">Descartar sugestão</button>
+      <br><button type="button" class="btn-secondary" style="margin-top:6px;padding:4px 10px;font-size:12px;" onclick="descartarSugestaoHygea()">Descartar sugestão</button>
     </div>` : '';
   document.getElementById('etiquetaFormCol').innerHTML = `
-    ${avisoFarma}
+    ${avisoHygea}
     <div class="field-block">
       <label>Tipo de etiqueta</label>
       <select onchange="setEtiquetaStructural('tipo', this.value)">
@@ -2896,9 +2901,9 @@ function etiquetaStaticInnerHtml(state){
 }
 function printEtiquetas(){
   const s = etiquetaState;
-  if(s.preparadoPelaFarma){
-    s.preparadoPelaFarma = false;
-    dataStore.setConfig('farmaEtiquetaPendente', null).catch(()=>{});
+  if(s.preparadoPelaHygea){
+    s.preparadoPelaHygea = false;
+    dataStore.setConfig('hygeaEtiquetaPendente', null).catch(()=>{});
   }
   let old = document.getElementById('etiquetaPrintArea');
   if(old) old.remove();
@@ -4110,7 +4115,7 @@ window.openEditCustomDeclModal = openEditCustomDeclModal;
 window.openEditFolderModal = openEditFolderModal;
 window.openFolder = openFolder;
 window.openLombadaZoom = openLombadaZoom;
-window.descartarSugestaoFarma = descartarSugestaoFarma;
+window.descartarSugestaoHygea = descartarSugestaoHygea;
 window.openMedListPanel = openMedListPanel;
 window.openNewBiblioBookModal = openNewBiblioBookModal;
 window.openNewCustomDeclModal = openNewCustomDeclModal;

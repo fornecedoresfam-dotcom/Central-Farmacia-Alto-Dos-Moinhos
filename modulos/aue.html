@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pedidos AUE · Central Operacional</title>
+<title>Pedidos AUE · Central HYGEA</title>
+<link rel="icon" href="/assets/hygea/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/hygea/hygea-icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/hygea/hygea-icon-192.png">
+<link rel="apple-touch-icon" href="/assets/hygea/hygea-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Central HYGEA">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/module-chrome.css">
@@ -140,6 +145,21 @@
   .badge .dot{width:6px;height:6px;border-radius:50%;}
   .days-tag{font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
   .days-tag.late{color:var(--red);font-weight:700;}
+  .icon-btn{
+    width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:#fff;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);
+  }
+  .icon-btn:hover{border-color:var(--brand-bright,#4f9c72);color:var(--brand-deep,#1f543e);}
+  .icon-btn.danger{color:var(--red);}
+
+  /* ---------- Ponto 59: aba "Documentos" reutilizável (ver src/ui/documentos-modulo.js) ---------- */
+  .doc-list{display:flex;flex-direction:column;gap:10px;}
+  .doc-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);}
+  .doc-row .dicon{width:38px;height:38px;border-radius:9px;background:var(--grey-bg);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+  .doc-row .dinfo{flex:1;min-width:0;}
+  .doc-row .dinfo b{display:block;font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .doc-row .dinfo span{font-size:11.5px;color:var(--ink-soft);}
+  .doc-row .dactions{display:flex;gap:6px;flex-shrink:0;}
   .doc-badge{
     display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:20px;font-size:11px;font-weight:700;
   }
@@ -323,7 +343,7 @@
 </head>
 <body>
 
-<div class="mc-standalone-bar" id="mcStandaloneBar"><a href="/">← Voltar à Central Operacional</a></div>
+<div class="mc-standalone-bar" id="mcStandaloneBar"><a href="/">← Voltar à Central HYGEA</a></div>
 <a class="module-back" href="/" onclick="event.preventDefault(); voltarACentral();">← Voltar à Central</a>
 
 <div class="app" id="appRoot">
@@ -346,17 +366,19 @@
   <main>
     <div class="topbar">
       <h1>Pedidos AUE</h1>
-      <div class="search-wrap">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="searchInput" type="text" placeholder="Pesquisar por utente, NIF, medicamento, médico…" oninput="render()">
-      </div>
-      <button class="btn-secondary" onclick="cycleSort()">↕ Ordenar: <span id="sortLabel">Mais recentes</span></button>
-      <button class="btn-secondary" onclick="document.getElementById('fileHidden').click()">⇪ Importar</button>
-      <button class="btn-secondary" onclick="exportCSV()">⇩ Exportar</button>
-      <button class="btn-secondary" onclick="openEmailSettingsModal()">✉ Email <span id="mailDot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#5B7A93;margin-left:4px;"></span></button>
-      <button class="btn-secondary" onclick="openSyncSettingsModal()">☁ Sincronização</button>
-      <input type="file" id="fileHidden" accept=".csv" onchange="handleImport(event)" style="display:none;">
-      <button class="btn-primary" onclick="openModal()">+ Novo pedido AUE</button>
+      <span id="pedidosTopbarActions" style="display:contents;">
+        <div class="search-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" placeholder="Pesquisar por utente, NIF, medicamento, médico…" oninput="render()">
+        </div>
+        <button class="btn-secondary" onclick="cycleSort()">↕ Ordenar: <span id="sortLabel">Mais recentes</span></button>
+        <button class="btn-secondary" onclick="document.getElementById('fileHidden').click()">⇪ Importar</button>
+        <button class="btn-secondary" onclick="exportCSV()">⇩ Exportar</button>
+        <button class="btn-secondary" onclick="openEmailSettingsModal()">✉ Email <span id="mailDot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#5B7A93;margin-left:4px;"></span></button>
+        <button class="btn-secondary" onclick="openSyncSettingsModal()">☁ Sincronização</button>
+        <input type="file" id="fileHidden" accept=".csv" onchange="handleImport(event)" style="display:none;">
+        <button class="btn-primary" onclick="openModal()">+ Novo pedido AUE</button>
+      </span>
     </div>
 
     <div class="sync-banner" id="syncBanner">
@@ -365,6 +387,7 @@
     </div>
 
     <div id="tableWrap"></div>
+    <div id="documentosModuloContent" style="display:none;"></div>
   </main>
 </div>
 
@@ -676,6 +699,7 @@
 import { aoExpirarSessao, makeDataStore } from "../src/db.js";
 import { getToken, limparSessao, getPerfil } from "../src/authClient.js";
 import { validarNif, validarEmail, validarTelefone } from "../src/utils.js";
+import { criarAbaDocumentosModulo } from "../src/ui/documentos-modulo.js";
 
 function voltarACentral(){
   window.top.location.href = "/";
@@ -690,6 +714,15 @@ aoExpirarSessao(() => {
 if(!getToken()) voltarACentral();
 
 const dataStore = makeDataStore();
+
+// Ponto 59: aba "Documentos" independente deste módulo — ver
+// src/ui/documentos-modulo.js. Nada a ver com handleDocUpload/removeDoc
+// mais abaixo, que são os documentos OBRIGATÓRIOS de cada pedido AUE
+// (DOC_DEFS) — esta aba é um espaço livre à parte, para qualquer ficheiro.
+const abaDocumentosAue = criarAbaDocumentosModulo({
+  dataStore, chaveConfig: "documentos_aue", prefixoAsset: "documento_modulo_aue",
+  containerId: "documentosModuloContent", showToast: (msg) => showToast(msg)
+});
 
 /* Logótipo genérico de reserva — só aparece enquanto a farmácia não tiver
    carregado o seu próprio logótipo em Configurações > Geral. */
@@ -1087,6 +1120,9 @@ function renderSidebar(){
     label: `${it.label}${counts[it.key] ? ' (' + counts[it.key] + ')' : ''}`,
     onSelect: () => setFilter(it.key)
   }));
+  // Ponto 59: aba "Documentos" — não é um estado de pedido, por isso fica
+  // fora do map acima (sem contagem/pontinho de cor associado).
+  bbItems.push({ id: 'documentos', icon: '🗂️', label: 'Documentos', onSelect: () => setFilter('documentos') });
   window.ModuleChrome.mountBottomBar(bbItems, { activeId: activeFilter });
 }
 function dotColor(k){
@@ -1147,8 +1183,20 @@ function cycleSort(){
 
 function render(){
   renderSidebar();
-  const list = getFiltered();
   const wrap = document.getElementById('tableWrap');
+  const docWrap = document.getElementById('documentosModuloContent');
+  const topbarActions = document.getElementById('pedidosTopbarActions');
+  if(activeFilter === 'documentos'){
+    wrap.style.display = 'none';
+    if(topbarActions) topbarActions.style.display = 'none';
+    docWrap.style.display = '';
+    abaDocumentosAue.render();
+    return;
+  }
+  wrap.style.display = '';
+  if(topbarActions) topbarActions.style.display = 'contents';
+  docWrap.style.display = 'none';
+  const list = getFiltered();
   if(list.length===0){
     wrap.innerHTML = `<div class="empty"><b>Sem pedidos AUE aqui</b>Ajuste os filtros ou crie um novo pedido.</div>`;
     return;
@@ -2090,6 +2138,7 @@ window.setAutoEmail = setAutoEmail;
 window.setFilter = setFilter;
 window.toggleSidebar = toggleSidebar;
 window.voltarAEditarTemplate = voltarAEditarTemplate; // ponto 38
+Object.assign(window, abaDocumentosAue.handlers); // ponto 59: docModTriggerUpload/docModHandleUpload/docModDownload/docModRename/docModDelete
 </script>
 </body>
 </html>

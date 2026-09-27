@@ -120,7 +120,7 @@ function renderCrumb(container, state, handlers) {
   } else if (state.scope.tipo === "tudo") {
     parts = [{ label: t("nav.inicio", idioma), onClick: goHome }, { label: t("nav.ver_tudo", idioma), current: true }];
   } else if (state.scope.tipo === "modulo") {
-    const nomes = { "farma-ia": "FARMA IA", manipulados: "Manipulados", documentos: "Documentos", gabinete: "Gestão de Gabinete", pim: "Gestão de PIM", aue: "Pedidos AUE", stocks: "Stocks Errados", reservas: "Reservas", medela: "Aluguer Medela", "conversor-pdf": "Conversor de PDF", "devolucao-frio": "Devolução de Frio", "mapa-cardiovascular": "Mapa Cardiovascular", "devolucoes-armazenistas": "Devoluções a Armazenistas", "catalogo-produtos": "Catálogo de Produtos" };
+    const nomes = { "hygea-ia": "HYGEA IA", manipulados: "Manipulados", documentos: "Documentos", gabinete: "Gestão de Gabinete", pim: "Gestão de PIM", aue: "Pedidos AUE", stocks: "Stocks Errados", reservas: "Reservas", medela: "Aluguer Medela", "conversor-pdf": "Conversor de PDF", "devolucao-frio": "Devolução de Frio", "mapa-cardiovascular": "Mapa Cardiovascular", "devolucoes-armazenistas": "Devoluções a Armazenistas", "catalogo-produtos": "Catálogo de Produtos" };
     parts = [{ label: t("nav.inicio", idioma), onClick: goHome }, { label: nomes[state.scope.modulo] || state.scope.modulo, current: true }];
   } else {
     const path = getAncestorPath(state.categorias, state.scope.categoriaId);

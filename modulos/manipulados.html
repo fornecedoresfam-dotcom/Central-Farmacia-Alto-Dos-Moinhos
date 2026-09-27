@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Manipulados · Central Operacional</title>
+<title>Manipulados · Central HYGEA</title>
+<link rel="icon" href="/assets/hygea/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/hygea/hygea-icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/hygea/hygea-icon-192.png">
+<link rel="apple-touch-icon" href="/assets/hygea/hygea-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Central HYGEA">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/module-chrome.css">
@@ -174,6 +179,16 @@
     display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);
   }
   .icon-btn:hover{border-color:var(--green-bright);color:var(--green-deep);}
+  .icon-btn.danger{color:var(--red);}
+
+  /* ---------- Ponto 59: aba "Documentos" reutilizável (ver src/ui/documentos-modulo.js) ---------- */
+  .doc-list{display:flex;flex-direction:column;gap:10px;}
+  .doc-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);}
+  .doc-row .dicon{width:38px;height:38px;border-radius:9px;background:var(--grey-bg);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+  .doc-row .dinfo{flex:1;min-width:0;}
+  .doc-row .dinfo b{display:block;font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .doc-row .dinfo span{font-size:11.5px;color:var(--ink-soft);}
+  .doc-row .dactions{display:flex;gap:6px;flex-shrink:0;}
 
   /* status colors */
   .s-pendente{background:var(--amber-bg);color:var(--amber);} .s-pendente .dot{background:var(--amber);}
@@ -319,7 +334,7 @@
 <body>
 
 <div class="mc-standalone-bar" id="mcStandaloneBar">
-  <a href="/">← Voltar à Central Operacional</a>
+  <a href="/">← Voltar à Central HYGEA</a>
 </div>
 <a class="module-back" href="/" onclick="event.preventDefault(); voltarACentral();">← Voltar à Central</a>
 
@@ -339,20 +354,23 @@
 
   <main>
     <div class="topbar">
-      <h1>Pedidos de manipulados</h1>
-      <div class="search-wrap">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="searchInput" type="text" placeholder="Pesquisar por nome, NIF, receita, telefone…" oninput="render()">
-      </div>
-      <button class="btn-secondary" onclick="cycleSort()">↕ Ordenar: <span id="sortLabel">Mais recentes</span></button>
-      <button class="btn-secondary" onclick="document.getElementById('fileHidden').click()">⇪ Importar</button>
-      <button class="btn-secondary" onclick="exportCSV()">⇩ Exportar</button>
-      <button class="btn-secondary" onclick="openEmailSettingsModal()">✉ Email</button>
-      <input type="file" id="fileHidden" accept=".csv" onchange="handleImport(event)" style="display:none;">
-      <button class="btn-primary" onclick="openModal()">+ Novo pedido</button>
+      <h1 id="pedidosTitulo">Pedidos de manipulados</h1>
+      <span id="pedidosTopbarActions" style="display:contents;">
+        <div class="search-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" placeholder="Pesquisar por nome, NIF, receita, telefone…" oninput="render()">
+        </div>
+        <button class="btn-secondary" onclick="cycleSort()">↕ Ordenar: <span id="sortLabel">Mais recentes</span></button>
+        <button class="btn-secondary" onclick="document.getElementById('fileHidden').click()">⇪ Importar</button>
+        <button class="btn-secondary" onclick="exportCSV()">⇩ Exportar</button>
+        <button class="btn-secondary" onclick="openEmailSettingsModal()">✉ Email</button>
+        <input type="file" id="fileHidden" accept=".csv" onchange="handleImport(event)" style="display:none;">
+        <button class="btn-primary" onclick="openModal()">+ Novo pedido</button>
+      </span>
     </div>
 
     <div id="tableWrap"></div>
+    <div id="documentosModuloContent" style="display:none;"></div>
   </main>
 </div>
 
@@ -555,6 +573,7 @@
 import { makeDataStore, aoExpirarSessao } from "../src/db.js";
 import { getToken, limparSessao, getPerfil } from "../src/authClient.js";
 import { STATUS_MANIPULADOS, tarefaTransicaoEstado } from "../src/manipuladosCore.js";
+import { criarAbaDocumentosModulo } from "../src/ui/documentos-modulo.js";
 
 /* Reutiliza o cliente de dados da Central só para os anexos (getAsset/setAsset/
    deleteAsset), que já tratam da fragmentação de ficheiros grandes e da
@@ -562,6 +581,13 @@ import { STATUS_MANIPULADOS, tarefaTransicaoEstado } from "../src/manipuladosCor
    diretamente aqui, porque é uma fatia própria deste módulo dentro do mesmo
    /api/data partilhado por toda a Central (ver netlify/functions/data.js). */
 const dataStore = makeDataStore();
+
+// Ponto 59: aba "Documentos" independente deste módulo — ver
+// src/ui/documentos-modulo.js (chave/prefixo únicos por módulo).
+const abaDocumentosManipulados = criarAbaDocumentosModulo({
+  dataStore, chaveConfig: "documentos_manipulados", prefixoAsset: "documento_modulo_manipulados",
+  containerId: "documentosModuloContent", showToast: (msg) => showToast(msg)
+});
 
 function voltarACentral(){
   window.top.location.href = "/";
@@ -702,7 +728,7 @@ if(!getToken()) voltarACentral();
 
 /* ---------------- DATA ---------------- */
 // ponto 30: STATUS vem agora de src/manipuladosCore.js (única fonte de
-// verdade, partilhada com a FARMA — ver src/farmaAcoes.js) em vez de uma
+// verdade, partilhada com a HYGEA — ver src/hygeaAcoes.js) em vez de uma
 // cópia local; mantém-se o nome curto "STATUS" para não mexer no resto do
 // ficheiro, que o usa em dezenas de sítios.
 const STATUS = STATUS_MANIPULADOS;
@@ -803,6 +829,9 @@ function renderSidebar(){
     label: `${it.label}${counts[it.key] ? ' (' + counts[it.key] + ')' : ''}`,
     onSelect: () => setFilter(it.key)
   }));
+  // Ponto 59: aba "Documentos" — não é um estado de pedido, por isso fica
+  // fora do map acima (sem contagem/pontinho de cor associado).
+  bbItems.push({ id: 'documentos', icon: '🗂️', label: 'Documentos', onSelect: () => setFilter('documentos') });
   window.ModuleChrome.mountBottomBar(bbItems, { activeId: activeFilter });
 }
 function dotColor(k){
@@ -864,8 +893,20 @@ function cycleSort(){
 
 function render(){
   renderSidebar();
-  const list = getFiltered();
   const wrap = document.getElementById('tableWrap');
+  const docWrap = document.getElementById('documentosModuloContent');
+  const topbarActions = document.getElementById('pedidosTopbarActions');
+  if(activeFilter === 'documentos'){
+    wrap.style.display = 'none';
+    if(topbarActions) topbarActions.style.display = 'none';
+    docWrap.style.display = '';
+    abaDocumentosManipulados.render();
+    return;
+  }
+  wrap.style.display = '';
+  if(topbarActions) topbarActions.style.display = 'contents';
+  docWrap.style.display = 'none';
+  const list = getFiltered();
   if(list.length===0){
     wrap.innerHTML = `<div class="empty"><b>Sem pedidos aqui</b>Ajuste os filtros ou crie um novo pedido de manipulado.</div>`;
     return;
@@ -1166,7 +1207,7 @@ async function saveCurrent(){
     if(!isNew && payload.status !== statusAnterior){
       // ponto 30: a decisão da tarefa a registar (incl. "reabrir_pedido" ao
       // sair de entregue/cancelado) vem agora de tarefaTransicaoEstado()
-      // (src/manipuladosCore.js) — mesma regra, agora partilhada com a FARMA
+      // (src/manipuladosCore.js) — mesma regra, agora partilhada com a HYGEA
       // em vez de duplicada aqui.
       const tarefaTransicao = tarefaTransicaoEstado(statusAnterior, payload.status);
       if(tarefaTransicao) window.ModuleChrome.registarUso('manipulados', tarefaTransicao);
@@ -1725,6 +1766,7 @@ window.setFilter = setFilter;
 window.setFornecedorPadrao = setFornecedorPadrao;
 window.toggleSidebar = toggleSidebar;
 window.voltarAEditarTemplate = voltarAEditarTemplate; // ponto 38
+Object.assign(window, abaDocumentosManipulados.handlers); // ponto 59: docModTriggerUpload/docModHandleUpload/docModDownload/docModRename/docModDelete
 </script>
 </body>
 </html>

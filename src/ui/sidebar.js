@@ -47,7 +47,7 @@ function filterTree(nodes, ql) {
 }
 
 const MODULOS = [
-  { id: "farma-ia", icon: "spark", label: "FARMA IA" },
+  { id: "hygea-ia", icon: "spark", label: "HYGEA IA" },
   { id: "manipulados", icon: "capsule", label: "Manipulados" },
   { id: "documentos", icon: "folder", label: "Documentos" },
   { id: "gabinete", icon: "boxes", label: "Gestão de Gabinete" },
@@ -98,7 +98,7 @@ export function renderSidebar(container, state, handlers) {
         ? `<img class="brand-logo" src="${state.logoBase64}" alt="Logótipo">`
         : `<div class="brand-logo-placeholder">${icon("capsule")}</div>`}
       <div class="brand-text">
-        <h1>Central Operacional</h1>
+        <h1>Central HYGEA</h1>
         <p>${escapeHtml(state.nomeFarmacia)}</p>
       </div>
     </div>

@@ -11,7 +11,7 @@
  *   { dias: { "AAAA-MM-DD": { "modulo.tarefaId": contagem, ... }, ... } }
  */
 
-import { chaveTarefa, estimativaEfetiva, TAREFAS_CATALOGO } from "./usoCatalogo.js";
+import { chaveTarefa, estimativaEfetiva, normalizarChaveUso, TAREFAS_CATALOGO } from "./usoCatalogo.js";
 
 function pad2(n) { return String(n).padStart(2, "0"); }
 export function isoDia(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
@@ -88,7 +88,9 @@ export function calcularPoupanca(dias, overrides) {
     const registos = dias[dia];
     Object.keys(registos).forEach(chave => {
       const qtd = registos[chave] || 0;
-      const est = estimativaEfetiva(chave, overrides);
+      // ponto 60: chaves escritas antes da mudança de nome do módulo (ex.:
+      // "farma-ia.perguntar") continuam a contar, agregadas no id novo.
+      const est = estimativaEfetiva(normalizarChaveUso(chave), overrides);
       if (!est) return; // tarefa desconhecida (catálogo desatualizado) — ignora em vez de rebentar
       segundosManual += est.tempoManualSeg * qtd;
       segundosCentral += est.tempoCentralSeg * qtd;
@@ -115,7 +117,7 @@ export function agregarPorModulo(dias, overrides) {
   Object.keys(dias).forEach(dia => {
     Object.keys(dias[dia]).forEach(chave => {
       const qtd = dias[dia][chave] || 0;
-      const est = estimativaEfetiva(chave, overrides);
+      const est = estimativaEfetiva(normalizarChaveUso(chave), overrides);
       if (!est) return;
       if (!porModulo[est.modulo]) porModulo[est.modulo] = { segundosManual: 0, segundosCentral: 0, totalOcorrencias: 0 };
       porModulo[est.modulo].segundosManual += est.tempoManualSeg * qtd;
@@ -133,8 +135,9 @@ export function agregarPorTarefa(dias, overrides) {
   Object.keys(dias).forEach(dia => {
     Object.keys(dias[dia]).forEach(chave => {
       const qtd = dias[dia][chave] || 0;
-      if (!porTarefa[chave]) porTarefa[chave] = 0;
-      porTarefa[chave] += qtd;
+      const normal = normalizarChaveUso(chave); // ponto 60 (ver usoCatalogo.js)
+      if (!porTarefa[normal]) porTarefa[normal] = 0;
+      porTarefa[normal] += qtd;
     });
   });
   return TAREFAS_CATALOGO.map(t => {

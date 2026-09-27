@@ -1,11 +1,11 @@
 /**
  * src/manipuladosCore.js — lógica pura extraída de `modulos/manipulados.html`
  * (ponto 30), para deixar de haver duas cópias da mesma informação/regras:
- * uma só fonte de verdade que tanto a UI do módulo como a FARMA (ponto 30,
- * `src/farmaAcoes.js`) usam para mudar o estado de um pedido de manipulado.
+ * uma só fonte de verdade que tanto a UI do módulo como a HYGEA (ponto 30,
+ * `src/hygeaAcoes.js`) usam para mudar o estado de um pedido de manipulado.
  *
  * Sem I/O nenhum aqui (sem fetch, sem DOM) — só transformações de dados,
- * testáveis isoladamente. Mesma filosofia de `src/farmaIa.js`/`src/manutencao.js`.
+ * testáveis isoladamente. Mesma filosofia de `src/hygeaIa.js`/`src/manutencao.js`.
  */
 
 export const STATUS_MANIPULADOS = {
@@ -40,7 +40,7 @@ export function tarefaTransicaoEstado(estadoAnterior, estadoNovo) {
 
 /** Procura, entre os pedidos AINDA não fechados (entregue/cancelado), o(s)
  * que correspondem a um texto livre (nome do utente ou do medicamento —
- * a forma mais natural de alguém, ou a FARMA, referir um pedido sem saber
+ * a forma mais natural de alguém, ou a HYGEA, referir um pedido sem saber
  * o id interno). Devolve todas as correspondências — quem chama decide o
  * que fazer com 0, 1 ou várias (nunca adivinha entre várias). */
 export function encontrarPedidosPorTexto(pedidos, texto) {

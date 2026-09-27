@@ -36,7 +36,7 @@ export const MODULOS_ATALHOS = [
   { modulo: "mapa-cardiovascular", nome: "Mapa Cardiovascular" },
   { modulo: "devolucoes-armazenistas", nome: "Devoluções a Armazenistas" },
   { modulo: "catalogo-produtos", nome: "Catálogo de Produtos" },
-  { modulo: "farma-ia", nome: "FARMA IA" }
+  { modulo: "hygea-ia", nome: "HYGEA IA" }
 ];
 
 export function categoriaIndefinida() {

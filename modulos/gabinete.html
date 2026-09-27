@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão de Gabinete · Central Operacional</title>
+<title>Gestão de Gabinete · Central HYGEA</title>
+<link rel="icon" href="/assets/hygea/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/hygea/hygea-icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/hygea/hygea-icon-192.png">
+<link rel="apple-touch-icon" href="/assets/hygea/hygea-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Central HYGEA">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/module-chrome.css">
@@ -325,7 +330,7 @@
 <body>
 
 <div class="mc-standalone-bar" id="mcStandaloneBar">
-  <a href="/">← Voltar à Central Operacional</a>
+  <a href="/">← Voltar à Central HYGEA</a>
 </div>
 <a class="module-back" href="/" onclick="event.preventDefault(); voltarACentral();">← Voltar à Central</a>
 
@@ -2448,8 +2453,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // ANTES de hydrateFromCloud() — via só a cache local (localStorage) deste
   // browser, que está sempre vazia na 1ª vez que ESTE browser abre a página,
   // mesmo que a farmácia já tivesse dados reais no servidor (ex.: criados
-  // noutro dispositivo, ou pela FARMA/assistente diretamente via API — ver
-  // src/farmaAcoes.js). Como saveJSON()/gravarGabinete() substituem por
+  // noutro dispositivo, ou pela HYGEA/assistente diretamente via API — ver
+  // src/hygeaAcoes.js). Como saveJSON()/gravarGabinete() substituem por
   // inteiro a fatia gabinete.<key>, semear localmente e gravar de imediato
   // APAGAVA silenciosamente dados reais já existentes no servidor. Agora só
   // semeia DEPOIS de tentar ler a nuvem — e só se, mesmo depois disso, a

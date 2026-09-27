@@ -21,6 +21,7 @@ import { CATEGORIA_INDEFINIDA_ID, CATEGORIAS_PADRAO, MODULOS_ATALHOS } from "./d
 import { getPerfil } from "./authClient.js";
 import { cacheBrandingLocal } from "./db.js";
 import { t, normalizarIdioma, DEFAULT_IDIOMA } from "./i18n.js";
+import { migrarServicosHygea, migrarConfigHygea } from "./migracaoHygea.js";
 
 function stripTransient(s) {
   // `htmlContent`/`arquivoBase64` NUNCA vão no payload do estado geral: vivem
@@ -215,22 +216,52 @@ export function createActions(store, dataStore) {
       // vez por farmácia; a flag "atalhosModulosCriados" evita recriá-los
       // se o utilizador os apagar depois. Gravação best-effort, em segundo
       // plano: não atrasa o arranque da Central.
+      // Ponto 60 (FARMA -> HYGEA): farmácias que já existiam têm o atalho do
+      // módulo gravado com o id/URL antigos. A migração corre ANTES de
+      // `criarAtalhosModulos` de propósito: é essa ordem que evita ficarem
+      // com dois atalhos para o mesmo módulo (o antigo, já não reconhecido,
+      // mais um novo criado por falta). Ver src/migracaoHygea.js.
+      const migracao = migrarServicosHygea(servicos);
       const categoriasBase = categorias.length ? categorias : CATEGORIAS_PADRAO.slice();
-      let servicosFinal = servicos;
+      let servicosFinal = migracao.servicos;
       let categoriasFinal = categoriasBase;
+      let gravarServicos = migracao.mudou;
+      let gravarCategorias = false;
       if (!atalhosCriados) {
-        const resultado = criarAtalhosModulos(servicos, categoriasBase);
-        if (resultado) { servicosFinal = resultado.servicos; categoriasFinal = resultado.categorias; }
-        const categoriasMudaram = categoriasFinal !== categoriasBase;
+        const resultado = criarAtalhosModulos(migracao.servicos, categoriasBase);
+        if (resultado) {
+          servicosFinal = resultado.servicos;
+          categoriasFinal = resultado.categorias;
+          gravarServicos = true;
+        }
+        gravarCategorias = categoriasFinal !== categoriasBase;
+      }
+      if (gravarServicos || gravarCategorias || !atalhosCriados) {
+        // Gravação best-effort, em segundo plano: não atrasa o arranque da
+        // Central. Fica registada em `atalhosSeedEmCurso` (ponto 58) para que
+        // um refresh que caia a meio espere por ela em vez de substituir o
+        // estado local por um retrato ainda sem estas alterações.
         atalhosSeedEmCurso = (async () => {
           try {
-            if (categoriasMudaram) await dataStore.putAll("categorias", categoriasFinal);
-            if (resultado) await dataStore.putAll("servicos", servicosFinal.map(stripTransient));
-            await dataStore.setConfig("atalhosModulosCriados", true);
+            if (gravarCategorias) await dataStore.putAll("categorias", categoriasFinal);
+            if (gravarServicos) await dataStore.putAll("servicos", servicosFinal.map(stripTransient));
+            if (!atalhosCriados) await dataStore.setConfig("atalhosModulosCriados", true);
           } catch (err) {
             console.error("Erro ao gravar os atalhos dos módulos:", err);
           }
+          // Memória/aprendizagem/definições da IA gravadas com os nomes
+          // antigos (ponto 60) — sem isto, a HYGEA arrancava "em branco"
+          // numa farmácia que já usava a FARMA.
+          try {
+            await migrarConfigHygea(dataStore);
+          } catch (err) {
+            console.error("Erro ao migrar as definições da HYGEA:", err);
+          }
         })().finally(() => { atalhosSeedEmCurso = null; });
+      } else {
+        atalhosSeedEmCurso = migrarConfigHygea(dataStore)
+          .catch((err) => { console.error("Erro ao migrar as definições da HYGEA:", err); })
+          .finally(() => { atalhosSeedEmCurso = null; });
       }
 
       store.dispatch({
