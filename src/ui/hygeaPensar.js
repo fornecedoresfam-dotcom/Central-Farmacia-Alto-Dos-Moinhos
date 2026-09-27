@@ -30,13 +30,26 @@ function garantirEstilo() {
   style.textContent = `
 .hygea-pensar{display:none;align-items:center;gap:7px;flex:0 0 auto;}
 .hygea-pensar[data-visivel="1"]{display:inline-flex;}
-.hygea-pensar video{width:30px;height:30px;display:block;background:transparent;border:0;pointer-events:none;}
+.hygea-pensar video{width:30px;height:30px;display:none;background:transparent;border:0;pointer-events:none;}
+/* o vídeo só entra em cena depois de estar mesmo a tocar; até lá (e para
+   sempre, se não houver vídeo) fica o anel, que é só CSS e nunca falha */
+.hygea-pensar[data-video="1"] video{display:block;}
+.hygea-pensar[data-video="1"] .hygea-pensar-anel{display:none;}
+.hygea-pensar-anel{
+  width:22px;height:22px;border-radius:50%;flex:0 0 auto;
+  border:2.5px solid #CDE7E0;border-top-color:#2E8B77;
+  animation:hygeaPensarRoda .9s linear infinite;
+}
+@keyframes hygeaPensarRoda{ to{ transform:rotate(360deg); } }
 .hygea-pensar .hygea-pensar-texto{font-size:12px;color:#5C7A6E;white-space:nowrap;}
 .hygea-pensar[data-so-video="1"] .hygea-pensar-texto{
   position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
   clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;
 }
-@media (prefers-reduced-motion: reduce){ .hygea-pensar video{display:none;} }
+@media (prefers-reduced-motion: reduce){
+  .hygea-pensar video{display:none;}
+  .hygea-pensar[data-video="1"] .hygea-pensar-anel{display:block;animation:none;border-top-color:#CDE7E0;}
+}
 `;
   document.head.appendChild(style);
 }
@@ -58,6 +71,7 @@ export function criarIndicadorPensar(opts = {}) {
   el.setAttribute("aria-live", "polite");
   if (!opts.comTexto) el.setAttribute("data-so-video", "1");
   el.innerHTML = `
+    <span class="hygea-pensar-anel" aria-hidden="true"></span>
     <video muted loop playsinline preload="auto" aria-hidden="true" tabindex="-1" disablepictureinpicture>
       <source src="${base}assets/hygea/hygea-a-pensar.webm" type="video/webm">
       <source src="${base}assets/hygea/hygea-a-pensar.mp4" type="video/mp4">
@@ -65,6 +79,13 @@ export function criarIndicadorPensar(opts = {}) {
     <span class="hygea-pensar-texto">${texto}</span>`;
 
   const video = el.querySelector("video");
+  // O vídeo só substitui o anel quando estiver MESMO a tocar. Isto cobre o
+  // caso real que apanhámos na farmácia: os ficheiros de vídeo não tinham
+  // sido publicados no site, e como o indicador era só o vídeo, não aparecia
+  // nada — nem sequer se percebia que a HYGEA estava a trabalhar. Assim, com
+  // vídeo ou sem ele, vê-se sempre que está a pensar.
+  video.addEventListener("playing", () => el.setAttribute("data-video", "1"));
+  video.addEventListener("error", () => el.removeAttribute("data-video"), true);
 
   function mostrar() {
     el.setAttribute("data-visivel", "1");
