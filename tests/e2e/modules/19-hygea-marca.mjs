@@ -81,6 +81,77 @@ export async function run(browser) {
     await ctx.close();
   }
 
+  // ---------- 2b. "porque é que aqui não aparece?" (ponto 60, continuação) ----------
+  // O Ivo reportou que a apresentação só aparecia num dos computadores. Estas
+  // verificações cobrem as três causas que explicam isso e, sobretudo, que a
+  // app passa a DIZER o motivo em vez de a apresentação desaparecer em silêncio.
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/?intro=0`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(250);
+    ok('Apresentação: "?intro=0" salta-a (útil para quem não a quer ver ao testar)',
+      (await page.locator('#hygeaIntro').count()) === 0 &&
+      /intro=0/.test(await page.evaluate(() => (window.HYGEA_INTRO || {}).motivo || '')), '');
+
+    const p2 = await page.context().newPage();
+    await p2.goto(`${BASE}/?intro=1`, { referer: `${BASE}/modulos/reservas.html`, waitUntil: 'domcontentloaded' });
+    await p2.waitForTimeout(300);
+    ok('Apresentação: "?intro=1" força-a mesmo vindo de dentro da app (serve para testar em cada computador)',
+      (await p2.locator('#hygeaIntro').count()) === 1, '');
+
+    const diag = await p2.evaluate(() => window.HYGEA_INTRO || null);
+    ok('Apresentação: a app regista o que sabe sobre a abertura (formatos lidos por este browser)',
+      !!diag && !!diag.formatos && typeof diag.formatos.webm === 'string', JSON.stringify(diag));
+    await ctx.close();
+  }
+
+  // ---------- 2c. computador com "reduzir animações" ligado ----------
+  {
+    const ctx = await browser.newContext({ reducedMotion: 'reduce' });
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(400);
+    ok('Apresentação: num computador que pede menos animações, continua a haver abertura (parada), em vez de não aparecer nada',
+      (await page.locator('#hygeaIntro').count()) === 1 &&
+      (await page.locator('#hygeaIntroNome').isVisible()), '');
+    await page.waitForSelector('#hygeaIntro', { state: 'detached', timeout: 6000 });
+    ok('Apresentação: essa abertura parada é curta e dá lugar ao ecrã de entrada',
+      await page.locator('#loginGate').isVisible(), '');
+    const motivo = await page.evaluate(() => (window.HYGEA_INTRO || {}).motivo || '');
+    ok('Apresentação: o motivo fica registado em vez de desaparecer em silêncio', /anima/i.test(motivo), motivo);
+    await ctx.close();
+  }
+
+  // ---------- 2d. página de diagnóstico ----------
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    const erros = coletarErros(page);
+    await page.goto(`${BASE}/diagnostico-hygea.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.waitForFunction(() => !/A verificar/.test(document.getElementById('veredito').textContent), null, { timeout: 20000 });
+    const veredito = await page.locator('#veredito').innerText();
+    const classe = await page.locator('#veredito').getAttribute('class');
+    ok('Diagnóstico: a página dá um veredito em português sobre este computador',
+      veredito.length > 20 && /veredito/.test(classe), veredito.replace(/\n/g, ' ').slice(0, 120));
+    ok('Diagnóstico: com tudo publicado, o veredito é positivo', /bom/.test(classe), classe);
+    const linhasVermelhas = await page.locator('.linha .sinal', { hasText: '❌' }).count();
+    ok('Diagnóstico: nenhum ficheiro dado como em falta quando está tudo publicado', linhasVermelhas === 0, `${linhasVermelhas} linhas a vermelho`);
+    ok('Diagnóstico: página sem erros de consola', erros.length === 0, erros.join(' | '));
+    await ctx.close();
+
+    // o caso que explica "só neste PC é que aparece": a página tem de nomear
+    // a causa, não limitar-se a dizer que está tudo bem
+    const ctx2 = await browser.newContext({ reducedMotion: 'reduce' });
+    const p2 = await ctx2.newPage();
+    await p2.goto(`${BASE}/diagnostico-hygea.html`, { waitUntil: 'domcontentloaded' });
+    await p2.waitForFunction(() => !/A verificar/.test(document.getElementById('veredito').textContent), null, { timeout: 20000 });
+    const v2 = await p2.locator('#veredito').innerText();
+    ok('Diagnóstico: num computador com "reduzir animações" ligado, o veredito aponta essa causa em vez de dizer que está tudo bem',
+      /anima/i.test(v2) && /Encontrado/i.test(v2), v2.replace(/\n/g, ' ').slice(0, 140));
+    await ctx2.close();
+  }
+
   // ---------- 3. ícone do atalho (favicon/manifesto) ----------
   {
     const ctx = await browser.newContext();
@@ -144,6 +215,41 @@ export async function run(browser) {
     ok('A pensar (mini-chat): a animação desaparece assim que a resposta chega',
       !(await page.locator('.hygea-mini-form .hygea-pensar').isVisible()), '');
     ok('A pensar (mini-chat): nenhum erro de página/consola', erros.length === 0, erros.join(' | '));
+    await ctx.close();
+  }
+
+  // ---------- 4b. e se os vídeos NÃO estiverem publicados? ----------
+  // Foi o que aconteceu a sério: o site foi publicado sem a pasta
+  // assets/hygea, e como o indicador era só o vídeo, não aparecia nada —
+  // nem se percebia que a HYGEA estava a trabalhar. Agora há um anel em CSS
+  // por baixo, que não depende de ficheiro nenhum.
+  {
+    const { token, perfil } = await signupFarmacia('SemVideo');
+    const { ctx, page } = await novaPaginaComSessao(browser, token, perfil, viewports.desktop);
+    await ctx.route('**/assets/hygea/*.webm', (r) => r.fulfill({ status: 404, body: '' }));
+    await ctx.route('**/assets/hygea/*.mp4', (r) => r.fulfill({ status: 404, body: '' }));
+    await page.goto(`${BASE}/index.html`, { waitUntil: 'load', timeout: 15000 });
+    await page.waitForTimeout(2500);
+
+    ok('Sem os vídeos publicados: a apresentação sai e diz porquê, em vez de ficar um ecrã branco',
+      (await page.locator('#hygeaIntro').count()) === 0 &&
+      /não foi encontrado/.test(await page.evaluate(() => (window.HYGEA_INTRO || {}).motivo || '')), '');
+
+    // Regressão encontrada ao simular isto: o aviso "A aplicação não
+    // carregou" reagia a QUALQUER recurso em falta, vídeo incluído — ou
+    // seja, um site publicado sem a pasta assets/hygea deixava de mostrar a
+    // Central e mostrava um ecrã de erro, com a app na realidade boa.
+    ok('Sem os vídeos publicados: a app NÃO diz falsamente "A aplicação não carregou"',
+      (await page.locator('#falhaArranque').count()) === 0, '');
+    ok('Sem os vídeos publicados: a Central continua utilizável',
+      (await page.locator('#appRoot').isVisible()) || (await page.locator('#loginGate').isVisible()), '');
+
+    await page.click('.hygea-mini-bolha');
+    await page.waitForTimeout(300);
+    await page.evaluate(() => document.querySelector('.hygea-mini-form .hygea-pensar').setAttribute('data-visivel', '1'));
+    await page.waitForTimeout(400);
+    ok('Sem os vídeos publicados: continua a ver-se que a HYGEA está a pensar (anel em CSS, sem depender de ficheiros)',
+      await page.locator('.hygea-mini-form .hygea-pensar-anel').isVisible(), '');
     await ctx.close();
   }
 

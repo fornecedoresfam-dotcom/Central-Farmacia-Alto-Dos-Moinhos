@@ -24,7 +24,11 @@
 // src/, o módulo da IA, o manifesto, os ícones e o ecrã de apresentação. Um
 // browser com a versão antiga em cache serviria ficheiros que já não
 // existem, por isso a versão sobe para uma nova série (v5).
-const CACHE_VERSION = "central-hygea-v5.0.0";
+// Ponto 60 (continuação): a apresentação não aparecia em alguns computadores
+// da farmácia. Parte da resposta é ter o vídeo já guardado localmente a
+// partir da 2ª visita, para não depender da rede no momento exato em que a
+// app abre — ver MEDIA_OPCIONAL abaixo.
+const CACHE_VERSION = "central-hygea-v5.1.0";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -49,15 +53,27 @@ const APP_SHELL = [
   "./src/ui/palette.js",
   "./src/ui/modals.js"
 ];
-// Os vídeos (apresentação e "a pensar") ficam deliberadamente FORA desta
-// lista: são os ficheiros mais pesados do conjunto e, se um deles falhasse,
-// `cache.addAll` rejeitava e a instalação inteira do service worker ia
-// abaixo — ficando a app sem cache nenhuma. São guardados na mesma, pelo
-// tratador de "fetch" mais abaixo, na primeira vez que tocam.
+// Os vídeos ficam FORA da lista acima de propósito: são os ficheiros mais
+// pesados do conjunto e, dentro de `cache.addAll`, bastava um falhar para a
+// instalação inteira do service worker ir abaixo — deixando a app sem cache
+// nenhuma. Ficam nesta segunda lista, guardada à parte e à prova de falhas:
+// cada um por sua conta, sem nunca comprometer a instalação. A partir da 2ª
+// visita a apresentação já não depende da rede para arrancar depressa.
+const MEDIA_OPCIONAL = [
+  "./assets/hygea/hygea-apresentacao.webm",
+  "./assets/hygea/hygea-apresentacao.mp4",
+  "./assets/hygea/hygea-apresentacao-poster.jpg",
+  "./assets/hygea/hygea-a-pensar.webm",
+  "./assets/hygea/hygea-a-pensar.mp4"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE_VERSION).then(async (cache) => {
+      await cache.addAll(APP_SHELL); // essencial: se falhar, a instalação falha (e tenta outra vez)
+      // opcional: cada ficheiro por sua conta, e um erro aqui não trava nada
+      await Promise.allSettled(MEDIA_OPCIONAL.map((u) => cache.add(u)));
+    }).then(() => self.skipWaiting())
   );
 });
 
