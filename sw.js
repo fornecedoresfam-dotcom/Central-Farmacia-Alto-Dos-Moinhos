@@ -28,7 +28,12 @@
 // da farmácia. Parte da resposta é ter o vídeo já guardado localmente a
 // partir da 2ª visita, para não depender da rede no momento exato em que a
 // app abre — ver MEDIA_OPCIONAL abaixo.
-const CACHE_VERSION = "central-hygea-v5.1.0";
+// v5.2.0 — pontos 62/63/64: cópia completa, módulo Vacinação e rótulo do PIM
+// em A5. Mexeu-se em src/ e acrescentou-se um módulo novo, por isso a versão
+// sobe (ver a nota no topo deste ficheiro): sem isto, um computador que já
+// tenha a Central instalada continuaria a servir os ficheiros antigos da sua
+// própria cache e não veria nada do que mudou.
+const CACHE_VERSION = "central-hygea-v5.2.0";
 const APP_SHELL = [
   "./",
   "./index.html",

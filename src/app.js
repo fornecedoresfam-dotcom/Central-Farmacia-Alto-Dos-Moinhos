@@ -24,6 +24,9 @@ const ICON_ELEMENT_MAP = {
   searchIcon2: "search", plusIcon2: "plus", htmlIcon: "upload", arquivoIcon: "upload",
   imgIcon2: "image", tagIcon2: "tag", imgIcon3: "image", chartIcon: "chart", boxesIcon: "boxes",
   downloadIcon: "download", downloadIcon2: "download", uploadIcon3: "upload", uploadIcon4: "upload",
+  // Ponto 62 — cópia completa (mudança de alojamento), no separador Dados.
+  copiaCompletaIcon: "boxes", copiaCompletaIcon2: "download",
+  restaurarCompletaIcon: "refresh", restaurarCompletaIcon2: "upload",
   alertIcon: "alertTriangle", trashIcon2: "trash", boltIcon: "bolt", logoutIcon: "logout",
   poupancaIcon1: "bolt", chartIcon2: "chart", boxesIcon2: "boxes", poupancaRefreshIcon: "refresh", poupancaPdfIcon: "download",
   manutIcon1: "gear", manutIcon2: "checkCircle", manutIcon3: "download", manutIcon4: "chart",
@@ -103,6 +106,9 @@ const modalEls = {
   usageStatsList: document.getElementById("usageStatsList"),
   btnExportar: document.getElementById("btnExportar"),
   inputImportar: document.getElementById("inputImportar"),
+  // Ponto 62 — cópia completa (estado inteiro + ficheiros), para mudar de servidor.
+  btnExportarCompleta: document.getElementById("btnExportarCompleta"),
+  inputImportarCompleta: document.getElementById("inputImportarCompleta"),
   btnResetTudo: document.getElementById("btnResetTudo"),
   idiomaSelect: document.getElementById("idiomaSelect")
 };
@@ -413,11 +419,49 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 // 2) periodicamente, em fundo, sem incomodar quem está a editar
+//
+// Ponto 61 — custo real desta linha: cada passagem é um pedido à função
+// /api/data, e o alojamento cobra o tempo de computação dessas funções. A
+// 25 em 25 segundos, um único separador aberto durante um dia de trabalho
+// fazia mais de mil chamadas — vezes os computadores da farmácia, vezes os
+// dias do mês, é a maior fatia do consumo da Central, e para quê: para ver
+// se outro posto mudou alguma coisa enquanto ninguém mexe em nada.
+//
+// Agora são 90 segundos E só enquanto alguém está mesmo a usar o separador.
+// Se o rato e o teclado estiverem quietos há mais de 10 minutos, o relógio
+// pára; à primeira mexida volta a ligar-se e atualiza logo, para quem chega
+// ao balcão não ficar a ver dados velhos. Com isto o número de chamadas cai
+// cerca de dez vezes, sem o utilizador notar diferença nenhuma — a vista
+// continua a atualizar-se ao voltar à aba (ver o ponto 1 acima) e a cada
+// gravação local.
+const INTERVALO_SYNC_MS = 90000;
+const INATIVIDADE_MAX_MS = 10 * 60 * 1000;
+let ultimaAtividade = Date.now();
+let estavaInativo = false;
+
+function podeSincronizarAgora() {
+  return !document.hidden
+    && store.getState().pronto
+    && store.getState().syncStatus === "synced"
+    && !modalEls.modalConfig.classList.contains("active")
+    && !palette.isOpen();
+}
+
+["pointerdown", "keydown", "wheel", "touchstart"].forEach((evento) => {
+  document.addEventListener(evento, () => {
+    ultimaAtividade = Date.now();
+    if (estavaInativo) {
+      estavaInativo = false;
+      // alguém voltou ao posto: atualiza já, em vez de esperar pelo próximo ciclo
+      if (podeSincronizarAgora()) actions.recarregarDoServidor();
+    }
+  }, { passive: true, capture: true });
+});
+
 setInterval(() => {
-  if (!document.hidden && store.getState().pronto && store.getState().syncStatus === "synced" && !modalEls.modalConfig.classList.contains("active") && !palette.isOpen()) {
-    actions.recarregarDoServidor();
-  }
-}, 25000);
+  if (Date.now() - ultimaAtividade > INATIVIDADE_MAX_MS) { estavaInativo = true; return; }
+  if (podeSincronizarAgora()) actions.recarregarDoServidor();
+}, INTERVALO_SYNC_MS);
 
 /* ---------- service worker (carregamentos instantâneos em visitas repetidas) ---------- */
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {

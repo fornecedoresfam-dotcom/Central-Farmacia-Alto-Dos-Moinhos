@@ -62,7 +62,9 @@ const FERRAMENTAS = [
   { id: "devolucao-frio", icon: "alertTriangle", label: "Devolução de Frio" },
   { id: "mapa-cardiovascular", icon: "bolt", label: "Mapa Cardiovascular" },
   { id: "devolucoes-armazenistas", icon: "download", label: "Devoluções a Armazenistas" },
-  { id: "catalogo-produtos", icon: "grid", label: "Catálogo de Produtos" }
+  { id: "catalogo-produtos", icon: "grid", label: "Catálogo de Produtos" },
+  // Ponto 63 — folhas de vacinação (gripe/COVID) do dia.
+  { id: "vacinacao", icon: "capsule", label: "Vacinação" }
 ];
 
 function moduloBtn(item, state, ql) {

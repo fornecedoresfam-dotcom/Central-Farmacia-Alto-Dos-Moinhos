@@ -24,6 +24,14 @@
   to = "/.netlify/functions/asset/:splat"
   status = 200
 
+# Ponto 62 — inventário dos ficheiros de uma farmácia, para a cópia completa
+# (mudança de alojamento) poder levar documentos e anexos sem o cliente ter de
+# adivinhar as chaves de cada módulo. Ver netlify/functions/migracao.js.
+[[redirects]]
+  from = "/api/migracao/*"
+  to = "/.netlify/functions/migracao/:splat"
+  status = 200
+
 # Conhecimento partilhado entre farmácias (HYGEA IA, ponto 43, Função 4:
 # "aprendizagem multifarma") — nunca dados por farmácia, ver
 # netlify/functions/hygea-aprendizagens.js
@@ -100,6 +108,16 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=600, must-revalidate"
+
+# Ponto 61 — os vídeos e ícones da HYGEA (~2 MB no total) nunca mudam de
+# conteúdo: se um dia mudarem, muda-se o nome do ficheiro. Com os 10 minutos
+# da regra acima, cada computador voltava a pedi-los várias vezes ao dia e
+# isso é tráfego pago. Um ano de cache, "immutable", faz com que sejam
+# descarregados UMA vez por computador e mais nada.
+[[headers]]
+  for = "/assets/hygea/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
   for = "/sw.js"

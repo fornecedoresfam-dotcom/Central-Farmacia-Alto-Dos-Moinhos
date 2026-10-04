@@ -187,6 +187,19 @@ export const TAREFAS_CATALOGO = [
   // -------------------------------------------------------------- Reservas
   { modulo: "reservas", tarefaId: "gerar_folha", nome: "Gerar folha de reservas", tempoManualSeg: 900, tempoCentralSeg: 60 },
 
+  // ------------------------------------------------------------- Vacinação
+  // Ponto 63. Três tarefas, não uma: a folha de vacinação não é só uma
+  // tabela impressa como a das Reservas (900s numa tarefa única). São três
+  // trabalhos que a farmácia faz à mão em campanha de gripe/COVID, e a soma
+  // dos três (1080s) fica deliberadamente próxima dessa referência, para o
+  // módulo novo não inflacionar a poupança total só por estar dividido.
+  { modulo: "vacinacao", tarefaId: "importar_marcacoes", nome: "Importar e tratar as marcações do dia", tempoManualSeg: 480, tempoCentralSeg: 20 },
+  // Contar quantos utentes levam COVID e dividir por 6 doses por frasco,
+  // arredondando para cima — a conta que decide quantos frascos se abrem e,
+  // se estiver errada, estraga doses.
+  { modulo: "vacinacao", tarefaId: "calcular_frascos_covid", nome: "Calcular frascos de vacina COVID necessários", tempoManualSeg: 240, tempoCentralSeg: 5 },
+  { modulo: "vacinacao", tarefaId: "gerar_folha", nome: "Gerar folha de vacinação para impressão", tempoManualSeg: 360, tempoCentralSeg: 30 },
+
   // ---------------------------------------------------------------- Medela
   { modulo: "medela", tarefaId: "gerar_contrato", nome: "Gerar contrato de aluguer", tempoManualSeg: 720, tempoCentralSeg: 90 },
 
@@ -262,7 +275,7 @@ export const MODULOS_NOMES = {
   aue: "Pedidos AUE", stocks: "Stocks Errados", reservas: "Reservas", medela: "Aluguer Medela",
   "conversor-pdf": "Conversor de PDF", "devolucao-frio": "Devolução de Frio",
   "mapa-cardiovascular": "Mapa Cardiovascular", "devolucoes-armazenistas": "Devoluções a Armazenistas",
-  "catalogo-produtos": "Catálogo de Produtos", "hygea-ia": "HYGEA IA"
+  "catalogo-produtos": "Catálogo de Produtos", vacinacao: "Vacinação", "hygea-ia": "HYGEA IA"
 };
 
 export function chaveTarefa(modulo, tarefaId) { return modulo + "." + tarefaId; }

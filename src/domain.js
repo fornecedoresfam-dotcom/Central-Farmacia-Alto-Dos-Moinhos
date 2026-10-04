@@ -36,6 +36,9 @@ export const MODULOS_ATALHOS = [
   { modulo: "mapa-cardiovascular", nome: "Mapa Cardiovascular" },
   { modulo: "devolucoes-armazenistas", nome: "Devoluções a Armazenistas" },
   { modulo: "catalogo-produtos", nome: "Catálogo de Produtos" },
+  // Ponto 63 — gerador das folhas de vacinação (gripe/COVID) a partir da
+  // exportação das marcações do dia.
+  { modulo: "vacinacao", nome: "Vacinação" },
   { modulo: "hygea-ia", nome: "HYGEA IA" }
 ];
 

@@ -3510,7 +3510,199 @@ Daí saíram mais duas defesas, para que a falta de um ficheiro nunca mais seja 
 - o indicador "a pensar" deixou de ser só o vídeo: por baixo há agora um **anel em CSS**, que não depende de ficheiro nenhum. Com vídeo publicado vê-se a animação da HYGEA; sem ele, vê-se o anel — mas vê-se sempre que a HYGEA está a trabalhar;
 - a apresentação, ao falhar o vídeo, deixa o nome no ecrã um instante e regista o motivo ("não foi encontrado"), em vez de piscar e desaparecer.
 
-**Verificação:** as verificações e2e do ponto 60 passaram de 24 para **39** (bateria completa: **574/574**, mais **767/767** unitários), incluindo um contexto de browser que simula "reduzir animações" (confirma que passou a haver abertura parada em vez de nada, e que o motivo fica registado), os dois parâmetros de teste, e a própria página de diagnóstico — que tem de apontar a causa certa em vez de dizer que está tudo bem. `CACHE_VERSION` subida para `central-hygea-v5.1.0`.
+**Fecho (mesmo dia, depois de publicar):** com os ficheiros já publicados e a servir bem (confirmado abrindo o vídeo diretamente pelo URL do site), o Ivo passou a ver "a primeira imagem do vídeo e salta para a app" — exatamente o caminho da **abertura parada**, ou seja, computadores com os efeitos de animação do Windows desligados. Confirmada assim a primeira das três causas. Decisão dele: a abertura da marca deve tocar em **todos** os computadores, por isso `RESPEITAR_REDUZIR_ANIMACOES` passou a `false` — a apresentação é a única animação da Central que ignora essa preferência do sistema (5 segundos, sem som, sem flashes); a constante fica lá para reverter numa linha. Acrescentado também, para o caso de um browser recusar mesmo a reprodução automática: o primeiro toque passa a **arrancar** o vídeo (em vez de saltar a apresentação) e a dica muda para "toque para ver a apresentação".
+
+E, para nunca mais haver este vaivém de tentativas, a página de diagnóstico passou a **correr a apresentação a sério**: abre a Central numa moldura escondida com `?intro=1` e lê o que a própria app registou (`window.HYGEA_INTRO`) — diz se o vídeo tocou, e o motivo exato se não tocou. Deixou de ser preciso adivinhar ou abrir a consola do browser.
+
+**Verificação:** as verificações e2e do ponto 60 passaram de 24 para **41** (bateria completa: **574/574**, mais **767/767** unitários), incluindo um contexto de browser que simula "reduzir animações" (confirma que passou a haver abertura parada em vez de nada, e que o motivo fica registado), os dois parâmetros de teste, e a própria página de diagnóstico — que tem de apontar a causa certa em vez de dizer que está tudo bem. `CACHE_VERSION` subida para `central-hygea-v5.1.0`.
+
+## Ponto 61 — a Central a gastar créditos do Netlify depressa demais
+
+**Queixa do Ivo (02/10/2026):** "a central está a consumir rapidamente os créditos" do Netlify, e pediu as melhores opções para o substituir.
+
+**O que o Netlify cobra hoje (plano gratuito: 300 créditos/mês, e o site PÁRA quando acabam):** 15 créditos por cada publicação de produção, 20 por GB de tráfego, 2 por cada 10 000 pedidos, 10 por GB-hora de computação das funções. Ou seja, 300 créditos são ~20 publicações — e só isso.
+
+**Onde está mesmo o consumo, por ordem de peso:**
+1. **As publicações.** 15 créditos cada. Numa tarde de afinações seguidas (como a do ponto 60) vão-se 5 a 8 publicações, que é um terço do mês. É de longe a maior fatia e não tem nada a ver com os utilizadores da farmácia.
+2. **O relógio de sincronização.** `src/app.js` pedia `/api/data` de **25 em 25 segundos** em cada separador aberto. Um só posto, num dia de trabalho, fazia mais de mil chamadas; quatro postos, ~100 mil por mês — tudo computação paga, a perguntar se alguém mudou alguma coisa enquanto ninguém mexe em nada.
+3. **Tráfego.** Os vídeos e ícones novos (~2 MB) tinham cache de 10 minutos, por estarem debaixo da regra geral de `/assets/*` — eram descarregados várias vezes por dia por cada computador.
+
+**O que foi mudado (os pontos 2 e 3, que são código):**
+- o relógio passou de 25s para **90s** e só corre enquanto alguém está mesmo a usar o separador: se o rato e o teclado estiverem quietos há mais de 10 minutos, pára; à primeira mexida liga-se e atualiza logo, para quem chega ao balcão não ver dados velhos. A frescura dos dados não sofre — a vista já se atualizava ao voltar à aba e a cada gravação. Chamadas: cerca de **10x menos**;
+- `assets/hygea/*` (vídeos e ícones, que nunca mudam de conteúdo — se mudarem, muda-se o nome) passou a ter cache de um ano, `immutable`: um descarregamento por computador, e não vários por dia.
+
+O ponto 1 não se resolve com código: resolve-se publicando menos vezes (juntar alterações, e usar os *deploy previews* / *branch deploys*, que não gastam créditos, para ver antes de promover).
+
+**Alternativas avaliadas, se mesmo assim não chegar.** A arquitetura da Central é estática + 4 funções + um armazém de blobs, o que a torna fácil de mudar de casa:
+- **Cloudflare Workers + R2** — o encaixe mais natural e o mais barato: 100 000 pedidos **por dia** no plano gratuito, ficheiros estáticos servidos à borla e sem limite de tráfego, e 5 USD/mês se um dia passar disso (10 milhões de pedidos). As funções (`export default async (request)`) são quase iguais às dos Workers e os Netlify Blobs têm equivalente direto no R2, incluindo escrita condicional para o bloqueio otimista do ponto 50. É a recomendação.
+- **VPS barato (ex.: Hetzner, ~4 €/mês)** — custo fixo e previsível, sem créditos nem surpresas; em troca, é preciso tratar do servidor.
+- **Render / Railway** (~5-7 USD/mês) — Node sempre ligado, simples, sem contadores.
+- **Netlify Personal (9 USD/mês, 1 000 créditos)** — zero trabalho; compra ~66 publicações ou 50 GB. Faz sentido como ponte enquanto se decide.
+- **Vercel** — o plano gratuito proíbe uso comercial e o pago é 20 USD/utilizador: não melhora nada em relação ao que já há.
+
+Ficheiros alterados: `src/app.js`, `netlify.toml`, `sw.js` (versão de cache para `central-hygea-v5.1.1`). Verificação: bateria do núcleo (88 verificações) e do ponto 60 (41) a passar depois da mudança do relógio.
+
+## Ponto 62 — mudar a Central de casa: Cloudflare Workers + R2, e a cópia completa que leva os dados
+
+**Decisão do Ivo (02/10/2026):** "Ok ganhaste vamos avançar para a cloudflare", com três escolhas explícitas: **só mudar de casa** (nada de reescrever nada), **aterrar num site de teste novo** (o antigo fica intocado), e **contas novas — mas a Central nova tem de conseguir puxar os dados de uma cópia de segurança feita na Central**. Vem na sequência do ponto 61 (créditos do Netlify a esgotar-se).
+
+### Porque é que isto foi barato
+
+Nenhuma das quatro funções da Central sabe onde os dados vivem. Todas expõem `handleRequest(request, context, getStoreImpl)` e recebem o armazenamento de fora — uma decisão tomada há muito, para o servidor de testes as poder correr com blobs em memória. O R2 é, por isso, só a terceira implementação do mesmo contrato de cinco métodos (`get`/`set`/`setJSON`/`delete`/`list`). **Não foi preciso alterar uma linha das funções**, e elas continuam a servir o alojamento antigo exatamente como antes.
+
+### O que foi criado
+
+- **`cloudflare/r2Store.js`** — o `getStore` sobre o R2. No Netlify havia três depósitos (`central-saas`, `central-saas-contas`, `central-saas-partilhado`); no R2 há um balde só, com os três separados por prefixo na chave. Isso é invisível para quem chama: as chaves entram e saem sempre sem o prefixo, **incluindo nas listagens** — se não fosse assim, o Painel Developer pediria de volta chaves que já não existiriam com esse nome. Dois cuidados que valem a pena registar: o `list()` percorre as páginas do cursor (sem isso, uma instalação com mais de mil farmácias mostraria só as primeiras, em silêncio), e um JSON corrompido **lança erro** em vez de devolver `null` — devolver `null` faria a Central concluir que a farmácia está vazia e começar do zero por cima, que é o pior resultado possível.
+- **`cloudflare/worker.js`** — o encaminhador, a fazer o que os `redirects` do `netlify.toml` faziam. Importa as **mesmas** funções de `netlify/functions/` (não há cópia paralela a manter) e copia os segredos de `env` para `process.env` a cada pedido — a cada pedido de propósito, porque um Worker é reaproveitado e não há garantia de que o arranque volte a correr depois de se mudar um segredo no painel. Mantém a rota antiga `/api/farma-aprendizagens` viva, pela razão do ponto 60.
+- **`cloudflare/netlify-blobs-stub.js` + `alias` no `wrangler.jsonc`** — as funções importam `@netlify/blobs` no topo mas nunca o usam por esse caminho (o armazenamento entra por injeção). Trocar o pacote por um substituto que lança erro evita ter de mexer nelas.
+- **`wrangler.jsonc`** — um Worker só. Os ficheiros estáticos saem pela rede da Cloudflare, de graça e sem limite (`run_worker_first: ["/api/*"]` limita o código às rotas da API); é daí que vem a diferença de contas em relação ao ponto 61, onde cada publicação custava 15 créditos de 300.
+- **`.assetsignore`** — deixa de publicar o código das funções, os testes e as notas internas (no alojamento anterior ficavam acessíveis a quem adivinhasse o endereço — dívida paga aqui). Com um aviso explícito lá dentro: **`scripts/` não entra nesta lista**; parece código de bastidores mas `src/hygeaTreinoLocal.js` importa `scripts/dados-treino-hygea.mjs` dentro do browser (ponto 43), e excluí-la partiria o treino local da HYGEA em silêncio.
+
+  **Corrigido a 04/10/2026, na primeira publicação real.** O log da Cloudflare dizia `Read 5739 files from the assets directory` e listava `/.git/index`, `/.git/logs/HEAD` e `/.wrangler/tmp/...` entre os ficheiros enviados — ou seja, o `.assetsignore` não estava a ser aplicado (não tinha ido para o repositório: começa por ponto, e esses perdem-se sem dar erro) e, mesmo que estivesse, não listava `.git` nem `.wrangler`, que o wrangler não exclui sozinho. O resultado seria o histórico do repositório servido como páginas do site. Falhou a publicação por outra razão (o balde R2 ainda não existia), pelo que nada chegou a ficar público — mas o modo de falha é o pior que há: **não dá erro nenhum, faz exatamente o que lhe mandam**. O ficheiro passou a listar `.git`, `.gitignore`, `.wrangler`, `bun.lock`/`bun.lockb`, e a trazer este episódio escrito lá dentro, para quem o vir a seguir perceber porque é que a lista não é só "as pastas óbvias".
+- **`_headers`** — a tradução dos cabeçalhos do `netlify.toml`, incluindo a CSP e o `immutable` de um ano para `assets/hygea/*` (ponto 61).
+
+  **Corrigido a 04/10/2026, com o site já a funcionar — e esta é a diferença entre os dois alojamentos que custou mais caro.** No Netlify, uma regra de cabeçalhos mais específica **substitui** a geral; na Cloudflare **não**: a documentação é explícita, *"if a header is applied twice in the `_headers` file, the values are joined with a comma separator"*. Um pedido a `/modulos/pim.html` casa com `/*` **e** com `/modulos/*`, e recebe os dois. Resultado: o browser recebia `X-Frame-Options: DENY, SAMEORIGIN` e duas CSP ao mesmo tempo — e com duas políticas de segurança o browser aplica a **interseção**. A interseção de "ninguém me pode enquadrar" com "só eu me posso enquadrar" é ninguém. **Todos os módulos deixaram de abrir dentro da Central**, com "recusou estabelecer ligação", ainda que cada um deles funcionasse perfeitamente aberto à parte.
+
+  A correção não foi afinar a exceção: foi deixar de haver exceção. O `frame-ancestors 'self'` e o `X-Frame-Options: SAMEORIGIN` passam a estar **só** no `/*`, uma vez. Continuam a bloquear qualquer outro site de enquadrar as páginas da Central — que é a proteção que interessa contra clickjacking; o que passam a permitir é a própria Central enquadrar as suas próprias páginas, que é exatamente o que ela faz por desenho. Pela mesma razão, a regra `/assets/*` foi partida nos ficheiros concretos: sobrepunha-se a `/assets/hygea/*` e colava dois `Cache-Control` (`max-age=600` e `max-age=31536000`), anulando em silêncio a cache de um ano do ponto 61.
+
+  **O que isto ensinou, e ficou em teste:** o servidor de testes local não lê o `_headers`, por isso a bateria e2e inteira passava com 674 verdes enquanto o site publicado estava partido. Nenhum teste de comportamento apanharia isto. `tests/headers.test.js` (30 verificações) lê o ficheiro e verifica a regra que foi violada — **nenhum cabeçalho pode ser definido em dois caminhos que se sobreponham** — contra os caminhos reais do site, mais as garantias de enquadramento, de cache e de que o `.assetsignore` não exclui o próprio `_headers` nem deixa de excluir o `.git`. Confirmado por injeção de falha: repondo a regra antiga, três verificações passam a falhar.
+- **`cloudflare/LEIA-ME-PUBLICAR.md`** — o guia de publicação: criar o balde, pôr os dois segredos, publicar. Os segredos e os acessos são sempre do Ivo; nunca passam por mim.
+
+### A cópia completa (o requisito dele)
+
+A exportação que já existia (`exportarDados`, versão 4) nasceu para outra coisa: levar serviços e categorias de uma Central para outra. **Não serve para mudar de servidor** — deixa para trás tudo o que os módulos guardam (utentes do PIM, pedidos AUE, manipulados, documentos, stocks, devoluções) e todos os ficheiros anexados. Numa mudança de alojamento isso não dá erro nenhum: desaparece, e só se descobre semanas depois, quando alguém procura um documento de 2024.
+
+O estado inteiro já sai num pedido (`GET /api/data` sem `?campos=`). Os ficheiros é que não: cada um vive no seu próprio blob e a app só os sabe ir buscar **um a um, pela chave** — e cada módulo inventa a chave à sua maneira (`doc-<id>`, `rec-<id>`, `aue-<pedido>-<campo>`, o `remoteId` de um anexo, `biblio-<id>-main`...). Havia duas saídas: repetir essas oito regras de nome no cliente, e perder em silêncio o que ficasse de fora (e cada módulo novo traria mais uma para esquecer), ou **perguntar ao servidor o que é que esta farmácia tem lá dentro**. Foi a segunda:
+
+- **`netlify/functions/migracao.js`** — `GET /api/migracao/inventario` devolve as chaves dos conteúdos pesados desta farmácia, com o `tenantId` sempre vindo do token (nunca do pedido, como no `data.js`/`asset.js`: uma farmácia nunca vê o inventário de outra). Faz três coisas ao normalizar: tira o prefixo interno; **colapsa a fragmentação** — um ficheiro acima de 2 MB está guardado como `x:meta` + `x:part:0..N` e tem de ser anunciado como `x` uma só vez, senão a cópia levava-o duas vezes e a importação gravava pedaços soltos que nenhum `getAsset` saberia remontar; e **exclui as cópias internas** (`backup-*`), que multiplicariam o ficheiro por vinte sem acrescentar nada.
+- **`src/db.js`: `inventarioAssets()`** — devolve `null`, e não erro, quando o servidor ainda não tem esta rota. Uma Central publicada antes deste ponto responde 404, e quem exporta continua sem os ficheiros **avisando no ecrã**, em vez de falhar por inteiro.
+- **`src/actions.js`: `exportarCopiaCompleta()` / `importarCopiaCompleta()`** — um único `.json` com `{ formato, versao, estado, ficheiros, ficheirosFalhados }`. O campo `formato` é o único contrato entre duas Centrais que não se conhecem: sem ele, um `.json` qualquer passaria por cópia e sobrescreveria uma farmácia inteira com nada. Na importação, **os ficheiros primeiro e o estado só no fim** — se algo falhar a meio, é melhor ter ficheiros a mais sem nada a apontar para eles (ocupa espaço) do que um estado cheio de documentos a apontar para ficheiros que não chegaram (parece dados perdidos a quem está a usar). Um ficheiro ilegível não interrompe a cópia dos restantes, mas vai **nomeado** dentro do próprio ficheiro, em `ficheirosFalhados`.
+- O `config.manutBackups` da origem é retirado na importação: os instantâneos a que aponta ficaram no servidor antigo, e deixá-lo entrar faria a Auto-manutenção mostrar pontos de restauro que já não existem — e clicar neles daria erro.
+- Interface: dois cartões novos no separador **Dados & Estatísticas** ("Cópia completa (mudar de servidor)" e "Restaurar cópia completa"). Restaurar substitui a farmácia inteira, por isso pede confirmação explícita, como o "Repor tudo" ao lado. A exportação antiga (versão 4) **ficou como estava** — não se mexeu no que funciona.
+
+### Verificação (e o que ela não prova)
+
+O wrangler não se instala no ambiente de trabalho (registo npm bloqueado), por isso **nada foi publicado na Cloudflare nem correu dentro do motor real da Cloudflare**. Em vez de afirmar o que não se verificou, criou-se uma forma de o testar aqui:
+
+- **`tests/e2e/r2-falso.mjs`** — um balde R2 em memória com a forma do verdadeiro, a paginar de propósito a cada 3 chaves (no R2 real a página tem mil, e um erro no percurso do cursor só apareceria com mais de mil farmácias).
+- **`MOTOR=worker` em `tests/e2e/local-server.mjs`** — os pedidos `/api/*` passam a ir ao `cloudflare/worker.js` em vez de às funções diretamente. Isto permite apontar **a bateria inteira** ao código novo: **576 verificações, 576 a passar**, iguais às do alojamento antigo.
+- **`tests/e2e/modules/20-copia-completa.mjs` (32 verificações novas)** — semeia uma farmácia com dados em seis módulos e com ficheiros (incluindo um de 2,1 MB, que o servidor parte em 2 pedaços, e uma cópia interna que não deve viajar), confirma o inventário (colapsa pedaços, exclui `backup-*`, 401 sem sessão, e uma farmácia não vê os ficheiros de outra), exporta **pelo botão real da interface**, importa numa conta nova e vazia **pelo botão real**, e compara tudo do outro lado: utentes, pedidos, documentos, stocks, devoluções, e os ficheiros byte a byte. Verifica também que a origem fica intacta e que uma exportação antiga (versão 4) é **recusada** sem tocar na farmácia.
+
+**O que isto não prova**, e tem de se confirmar no sítio nos primeiros minutos: o `scrypt` das palavras-passe (`node:crypto`, via `nodejs_compat`) — a documentação da Cloudflare diz que todas as funções do `node:crypto` estão suportadas com quatro exceções e o `scrypt` não é uma delas, mas "deve funcionar" não é "funciona"; e os cabeçalhos do `_headers`. Se o registo falhar, a alternativa já está pensada: trocar para PBKDF2, que com contas novas não custa nada.
+
+Ficheiros novos: `cloudflare/r2Store.js`, `cloudflare/worker.js`, `cloudflare/netlify-blobs-stub.js`, `cloudflare/LEIA-ME-PUBLICAR.md`, `wrangler.jsonc`, `.assetsignore`, `_headers`, `netlify/functions/migracao.js`, `tests/e2e/r2-falso.mjs`, `tests/e2e/modules/20-copia-completa.mjs`. Alterados: `src/db.js`, `src/actions.js`, `src/app.js`, `src/ui/modals.js`, `index.html`, `netlify.toml`, `tests/e2e/local-server.mjs`.
+
+## Ponto 63 — módulo Vacinação (folhas de gripe/COVID do dia)
+
+**Pedido do Ivo (02/10/2026):** anexar à Central o módulo novo (`vacinacao_farmacia.html`, enviado por ele), criar o atalho nos serviços, e atualizar as tarefas rastreadas e as estimativas de tempo em Poupança & ROI.
+
+### O que o módulo faz
+
+Lê a exportação das marcações do dia (Sifarma, `.csv` ou `.xlsx`), descarta as canceladas, classifica cada utente pelo nome do serviço em **Gripe + COVID / só Gripe / só COVID**, e conta quantos **frascos de COVID** são necessários (6 doses por frasco, arredondado para cima). Gera a folha A4 para imprimir, com resumo na primeira página, paginação e cores do cabeçalho ajustáveis. Não guarda estado nenhum: o ficheiro é lido e tratado no próprio computador e nada dele sai de lá.
+
+A conta dos frascos é a parte que importa estar certa. Se estiver errada, a folha sai igualmente bem apresentada e ninguém percebe — abre-se um frasco a mais (doses desperdiçadas) ou a menos (utentes sem vacina). Daí o peso que os testes abaixo dão à aritmética.
+
+### O que foi preciso mudar no ficheiro enviado
+
+O ficheiro vinha como ferramenta avulsa de uma farmácia. Para ser um módulo da Central:
+
+- **Identidade por farmácia.** Tinha `Farmácia Alto dos Moinhos` escrito no código — no título, no cabeçalho da folha impressa e no `alt` do logótipo. Numa app multi-farmácia isso sai impresso na folha da farmácia errada. O nome passa a vir de `config.nomeFarmacia` e o logótipo do asset `branding-logo`, com o mesmo padrão de `reservas.html` (leitura única ao arrancar, cache do `ModuleChrome`, e um `__vacinacaoRender()` para a folha já pré-visualizada se redesenhar quando o nome chega do servidor em vez de ficar com o nome de reserva).
+- **Guarda de sessão e navegação**: `aoExpirarSessao`, saída para a Central sem token, barra "← Voltar à Central HYGEA", ícones e `module-chrome.css`/`.js`.
+- O `<title>` passou a `Vacinação · Central HYGEA`.
+
+Mantém-se por decidir, de propósito, uma coisa: o selo "Desenvolvido por Ivo Batalha Software Development" no fundo da página. Nenhum dos outros 14 módulos o tem — não foi removido porque é autoria do Ivo e essa escolha é dele, não minha.
+
+### Atalho e navegação
+
+`MODULOS_ATALHOS` (`src/domain.js`), a barra lateral em **Ferramentas** (`src/ui/sidebar.js`) e o mapa de nomes das migalhas (`src/ui/main-content.js`). O atalho nos serviços de cada farmácia é criado pelo mecanismo que já existia (`criarAtalhosModulos`), na categoria "Serviços Clínicos" — sem passo de migração: a farmácia que já tinha a Central aberta recebe-o na próxima vez que entra.
+
+### Poupança & ROI
+
+Três tarefas, não uma:
+
+| tarefa | à mão | com a Central |
+| --- | --- | --- |
+| `importar_marcacoes` — importar e tratar as marcações do dia | 480s | 20s |
+| `calcular_frascos_covid` — calcular os frascos de COVID necessários | 240s | 5s |
+| `gerar_folha` — gerar a folha para impressão | 360s | 30s |
+
+A razão de serem três e não uma: as Reservas, que é o módulo irmão mais parecido, têm uma só tarefa de 900s para todo o fluxo. Aqui há um trabalho a mais que lá não existe — a classificação gripe/COVID e a conta dos frascos. A soma das três (1080s) foi escolhida para ficar **deliberadamente próxima** dessa referência de 900s, para o módulo novo não inflacionar a poupança total só por estar dividido em mais linhas. Como sempre, são estimativas conservadoras e ajustáveis por farmácia em Configurações → Poupança & ROI.
+
+`importar_marcacoes` e `calcular_frascos_covid` são registadas no carregamento do ficheiro (uma vez cada, por ficheiro); `gerar_folha` só no clique de imprimir. A conta dos frascos conta como tarefa própria apesar de ser automática, pelo mesmo critério do `alerta_terminar` do PIM, que já estava no catálogo: é trabalho que a farmácia fazia à mão e deixou de fazer.
+
+### Verificação
+
+- `tests/usoCatalogo.test.js` — contagem atualizada (153 → 156). Os testes de integridade que já existiam é que fazem o trabalho real aqui: garantem que `MODULOS_NOMES` e `MODULOS_ATALHOS` têm exatamente as mesmas chaves e que cada módulo tem pelo menos uma tarefa — ou seja, esquecer um dos quatro sítios de registo passa a dar erro em vez de passar em silêncio. 19 testes a passar.
+- **`tests/e2e/modules/21-vacinacao.mjs` (40 verificações novas)** — com números escolhidos para o arredondamento ter de acontecer: 13 marcações, uma delas cancelada, 4 com as duas vacinas, 3 só gripe, 5 só COVID. Logo Gripe = 7, COVID = 9, frascos = ⌈9/6⌉ = **2**. Verifica as contas, a exclusão da cancelada (de todas as contas e da folha), as três ordenações, retrato/paisagem, a paginação com um dia cheio (34 marcações, 15 por folha → 3 folhas, resumo só na primeira), o nome da farmácia das Configurações no cabeçalho e **na folha impressa**, que não sobrou nenhum nome fixo na página, a saída sem sessão, o aviso de formato não suportado, e as três tarefas de uso — cada uma uma só vez, pela ação certa (ajustar a tabela não inventa tarefas; imprimir não volta a contar a importação; um segundo ficheiro conta como segunda importação).
+- O módulo entrou na lista `MODULOS` da bateria, pelo que passa também pelo teste de fumo em três larguras.
+- **Bateria completa: 651 verificações, 651 a passar** (608 + 40 novas + 3 de fumo), tanto no alojamento atual como em modo Worker da Cloudflare (ponto 62) — o módulo novo comporta-se igual nos dois. Testes unitários: **767 a passar**. Numa das corridas em modo Worker falhou uma única verificação de i18n (`config.idioma="es"` persistido logo após o signup), que passa sozinha e passou na repetição: é a instabilidade de temporização que o próprio teste já documenta, sob carga da máquina, não uma diferença de comportamento.
+
+Nota de duas coisas encontradas e **deixadas como estão**, de propósito, por não ter sido isso que foi pedido: o `@import` das fontes do Google está depois do `:root` na folha de estilos, posição em que a norma do CSS o manda ignorar — o módulo usa as fontes do sistema em vez das desenhadas. Está exatamente assim em `reservas.html` desde que existe (os dois ficheiros têm a mesma origem), pelo que os dois estão visualmente coerentes e corrigir um sem o outro seria pior. E a barra lateral, agora com 15 módulos, passa de uma janela de 900px de altura: tem scroll próprio, mas volta ao topo cada vez que se redesenha, o que torna o último item das Ferramentas incómodo de alcançar numa janela baixa.
+
+Duas notas do que o ambiente de testes não consegue fazer, para não se confundir com cobertura: o sandbox não alcança o `cdnjs`, por isso o `Papa.parse` real nunca carrega e injeta-se um substituto mínimo e fiel ao contrato (o mesmo que `10-reservas.mjs` já fazia, pela mesma razão) — testa-se a lógica do módulo, não o CDN; e `window.print()` é substituído por um contador, porque num browser sem interface ficaria à espera de um diálogo que nunca aparece.
+
+Ficheiros novos: `modulos/vacinacao.html`, `tests/e2e/modules/21-vacinacao.mjs`. Alterados: `src/domain.js`, `src/ui/sidebar.js`, `src/ui/main-content.js`, `src/usoCatalogo.js`, `tests/usoCatalogo.test.js`, `tests/e2e/helpers.mjs`.
+
+## Ponto 64 — o rótulo do PIM impresso em A5 vertical, sem logótipo
+
+**Pedido do Ivo (04/10/2026):** "temos de alterar uma coisa na impressão do rótulo da PIM, retiramos o logótipo da farmácia, e vamos optimizar a impressão para A5 para funcionar de forma coerente e bem distribuída". Orientação escolhida por ele: **A5 vertical**.
+
+### Porque é que o rótulo é diferente das outras impressões
+
+É o papel que vai com o dispositivo da medicação de uma pessoa, e tem onze colunas: nome e dosagem, forma farmacêutica, os seis momentos do dia (jejum, pequeno-almoço, almoço, lanche, jantar, deitar), aspeto, cor e observações. Num A5 vertical sobram **132 mm** para essas onze colunas. É pouco, e o modo como isto falha é traiçoeiro: a folha sai à mesma, bonita, só que com um nome a transbordar por cima da coluna do lado ou com a segunda folha sem cabeçalho — e quem confere ao balcão não tem como dar por isso.
+
+### O que mudou
+
+- **O logótipo saiu** (`.ps-header img` já não é gerado em `printRotulo`). Estava com **176 px de altura**: numa folha A5, quase um quinto do papel gasto numa imagem, num documento onde o que interessa é o nome do utente e as tomas. A farmácia continua identificada por escrito, na linha abaixo do nome e no rodapé. **Só o rótulo perdeu o logótipo** — a ficha do utente, o calendário e as duas impressões de receitas continuam exatamente como estavam.
+- **`table-layout:fixed` com largura declarada por coluna**, num `<colgroup>`. Em A5 não se pode deixar o browser "ir decidindo" larguras: assim o mesmo medicamento sai sempre no mesmo sítio, em vez de a tabela dançar conforme o comprimento dos nomes. As seis colunas dos momentos do dia levam só um número, por isso ficam no mínimo que ainda deixa ler o cabeçalho (22 px) — e é daí que vem o espaço para a coluna da forma farmacêutica, que é a que tem as palavras mais compridas da folha. Com os 8 % iniciais, "comprimido" partia em "comprimi/do" e esticava a linha para cinco alturas de texto; era isso que fazia a tabela parecer desalinhada. Larguras finais: nome 26 %, forma 13,5 %, cada momento 4,1 %, aspeto 9,3 %, cor 9 %, observações 17,4 %.
+- **O cabeçalho da tabela repete-se em cada folha** (`thead{display:table-header-group}`). Sem isto, a segunda folha de um rótulo com muita medicação seria uma grelha de números sem nome em cima — e os números são as tomas.
+- **Tamanho de folha por impressão.** O `@page{margin:12mm}` da folha de estilos vale para o documento inteiro: escrever lá "A5" passaria a ficha do utente, o calendário e as receitas para A5 também, sem ninguém pedir. A regra do A5 passa a ser escrita no momento (`aplicarRegraPagina`), só enquanto a impressão decorre, e apagada no `afterprint`.
+
+### Uma coisa a mais, que não foi pedida
+
+O fundo da aplicação é verde-claro e, por causa do `print-color-adjust:exact` (necessário para o cabeçalho e as tabelas saírem com cor), a impressora pintava-o em **todas** as folhas de **todas** as impressões do módulo, incluindo a parte vazia da última. Numa folha A5 de rótulo isso é tinta gasta a cobrir papel em branco, a cada rótulo preparado. Uma linha (`html, body{background:#fff}` em `@media print`) resolve. Fica registado aqui por ter sido feito sem ser pedido, ainda que dentro de "optimizar a impressão" — e é trivial de reverter.
+
+### Verificação
+
+**`tests/e2e/modules/22-pim-rotulo-a5.mjs` (23 verificações novas).** Não verifica "a impressão corre": verifica geometria, que é o que falha em silêncio. A folha não passa os 148 mm; a tabela cabe dentro dela; as onze colunas existem e têm largura declarada; os seis momentos do dia têm todos a mesma largura; a coluna do nome é a mais larga; a da forma chega para "comprimido" numa linha; **nenhuma célula transborda** para a coluna do lado; o cabeçalho repete-se; o fundo do papel é branco. Depois confirma o que é fácil partir sem reparar: que a regra do A5 é apagada no fim e que a ficha do utente continua com logótipo e em A4. E repete tudo com **30 medicamentos**, o caso em que o rótulo passa para a segunda folha.
+
+Foi também gerado o PDF real (Chromium, `preferCSSPageSize`) para confirmar o que os números dizem: 420 × 595 pt, ou seja A5, duas páginas para 30 medicamentos, com o cabeçalho da tabela repetido na segunda.
+
+Ficheiro novo: `tests/e2e/modules/22-pim-rotulo-a5.mjs`. Alterado: `modulos/pim.html`.
+
+## Ponto 65 — a mudança para a Cloudflare fica parada: 10 ms de CPU por pedido não chegam
+
+**Decisão do Ivo (04/10/2026, ao fim do dia):** "mudança de planos, vamos voltar para a netlify e para os blobs".
+
+### O que correu bem, e que fique registado
+
+A migração do ponto 62 **funcionou**. A Central publicou, autenticou, guardou e leu dados do R2, abriu os módulos e criou os atalhos — tudo com o mesmo código que serve o Netlify. O problema que a travou não foi nenhuma das peças que se construíram.
+
+### O que a travou
+
+O registo do Worker não deixa margem para interpretação: **`Worker exceeded CPU time limit`** (erro 1102, devolvido como HTTP 503). O plano gratuito dos Workers dá **10 ms de CPU por pedido**. O plano pago dá 30 segundos.
+
+Dez milissegundos não chegam para duas coisas desta aplicação:
+
+1. **A verificação da palavra-passe.** O `scrypt` é lento *por desenho* — é isso que torna uma palavra-passe cara de adivinhar à força bruta. Uma verificação em condições leva dezenas de milissegundos. Não há como a fazer caber em dez sem a enfraquecer, e enfraquecer a proteção das contas de uma farmácia para poupar 5 USD/mês não é um negócio que se faça.
+2. **Os arranques a frio.** 12 falhas em 587 pedidos (2%), espaçadas no tempo e também em pedidos `GET` simples — o padrão de quem paga o custo de carregar o Worker outra vez depois de uns minutos parado.
+
+### O erro de verificação que foi meu
+
+No ponto 62 escrevi que o `scrypt` era "a única coisa que só o sítio real pode provar" e, quando o registo de conta passou, dei o risco por resolvido. **Confirmei a pergunta errada.** Funcionar e caber no orçamento de CPU do plano gratuito são duas perguntas diferentes, e só a primeira foi verificada. A segunda nem sequer foi feita — e era a que decidia. Fica aqui escrito porque o próximo a ler isto vai estar prestes a cometer o mesmo erro: **num alojamento com orçamento de CPU por pedido, "corre" não é o critério; "cabe" é.**
+
+### O que mudou no repositório
+
+Quase nada, e de propósito: **o Netlify nunca foi alterado**. Todo o trabalho do ponto 62 foi aditivo (pasta `cloudflare/`, `wrangler.jsonc`, `.assetsignore`, e em `netlify/functions/migracao.js` uma rota nova que serve os dois). A única alteração necessária para voltar:
+
+- **`_headers` saiu da raiz para `cloudflare/_headers`.** Isto não é arrumação, é uma armadilha desarmada: **o Netlify também lê um ficheiro `_headers` da pasta publicada, e lê-o ANTES do `netlify.toml`**. Deixá-lo na raiz faria com que a configuração escrita para a Cloudflare passasse a mandar no site do Netlify, tornando o `netlify.toml` — que é o que lá está pensado e testado — letra morta, sem erro nenhum e sem aviso. `tests/headers.test.js` passou a ter uma verificação que falha se o ficheiro voltar à raiz (confirmada por injeção de falha).
+- `wrangler.jsonc` e `.assetsignore` ficam onde estão: no Netlify são ficheiros sem significado nenhum.
+
+A pasta `cloudflare/` fica no repositório **de propósito**, com o guia de publicação e o adaptador do R2 prontos. Se um dia a conta passar ao plano pago (5 USD/mês, limite por pedido de 30 s), a mudança volta a ser o que já se provou que é: um dia de trabalho, não um mês. E a "cópia completa" do ponto 62 deixa de ser uma ferramenta de migração para ser o que também sempre foi — a forma de uma farmácia levar os seus dados inteiros para onde quiser.
+
+### Por fazer, do lado da Cloudflare
+
+Nada disto é código, mas custa dinheiro se ficar esquecido: a **subscrição do R2 renova-se automaticamente**. Enquanto o uso for zero não há cobrança, mas quem não pensa voltar deve cancelá-la em Billing → Subscriptions, e apagar o Worker `hygea-central` e o balde `central-hygea-dados`.
 
 ## Plano de trabalho
 

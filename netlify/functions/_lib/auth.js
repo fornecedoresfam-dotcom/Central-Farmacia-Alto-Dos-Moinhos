@@ -7,10 +7,12 @@
  * HMAC-SHA256), assinados e verificados só por nós — não precisam de
  * interoperar com mais ninguém.
  *
- * Variável de ambiente obrigatória no Netlify: AUTH_JWT_SECRET
- * (uma string aleatória longa, definida uma única vez no painel do site —
- * Site settings → Environment variables). Sem ela, a autenticação recusa-se
- * a arrancar, para nunca cair silenciosamente num segredo previsível.
+ * Variável de ambiente obrigatória: AUTH_JWT_SECRET — uma string aleatória
+ * longa, definida uma única vez no painel do alojamento (na Cloudflare:
+ * Worker → Settings → Variables and Secrets, como "Secret"; no Netlify, que
+ * era onde isto vivia antes: Site settings → Environment variables). Sem
+ * ela, a autenticação recusa-se a arrancar, para nunca cair silenciosamente
+ * num segredo previsível.
  */
 import { randomBytes, scryptSync, timingSafeEqual, createHmac, randomUUID } from "node:crypto";
 
@@ -20,8 +22,12 @@ export function getJwtSecret() {
   const secret = process.env.AUTH_JWT_SECRET;
   if (!secret || secret.length < 16) {
     throw new Error(
-      "AUTH_JWT_SECRET não está configurado (ou é demasiado curto). Defina uma variável de ambiente " +
-      "AUTH_JWT_SECRET com uma string aleatória longa em Site settings → Environment variables no Netlify."
+      // Ponto 62: a Central mudou de alojamento, e esta mensagem é lida por
+      // quem está a instalar — mandá-la ao painel errado faz perder meia
+      // hora à procura de um ecrã que já não existe para este site.
+      "AUTH_JWT_SECRET não está configurado (ou é demasiado curto). Defina-o com uma string aleatória " +
+      "longa (40+ caracteres) no painel do alojamento: na Cloudflare, no Worker → Settings → " +
+      "Variables and Secrets → Add → tipo Secret; no Netlify, em Site settings → Environment variables."
     );
   }
   return secret;
@@ -99,8 +105,9 @@ export function normalizarEmail(email) {
 /**
  * Ponto 54 — Painel Developer/Super-Admin. Um email é super-admin se
  * constar da variável de ambiente SUPER_ADMIN_EMAILS (lista separada por
- * vírgulas, definida uma única vez no painel do Netlify — Site settings →
- * Environment variables — nunca gravada em lado nenhum do código). Não
+ * vírgulas, definida uma única vez no painel do alojamento — na Cloudflare,
+ * Worker → Settings → Variables and Secrets — nunca gravada em lado nenhum
+ * do código). Não
  * existe um papel "admin" separado na conta: a MESMA conta/farmácia que já
  * usas para entrar ganha acesso extra quando o teu email está nesta lista —
  * sem login nem palavra-passe adicional.

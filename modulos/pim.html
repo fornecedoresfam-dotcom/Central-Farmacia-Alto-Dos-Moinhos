@@ -341,6 +341,68 @@
   .ps-summary-strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
   .ps-summary-strip span{font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;}
 
+  /* ---------- Ponto 64: rótulo do PIM em A5 vertical ----------
+     Tudo aqui está debaixo de .ps-rotulo-a5, e só o rótulo leva essa classe:
+     a ficha do utente, o calendário e as receitas continuam a imprimir
+     exatamente como imprimiam. O rótulo tem um problema que as outras não
+     têm — onze colunas (nome, forma, os seis momentos do dia, aspeto, cor e
+     observações) numa folha com 148 mm de largura. Em A5 não há margem para
+     o browser "ir decidindo" larguras: `table-layout:fixed` com uma largura
+     declarada por coluna é o que faz a folha sair sempre igual, com o mesmo
+     medicamento no mesmo sítio, em vez de dançar conforme o comprimento dos
+     nomes. É disso que depende alguém conferir a medicação ao balcão. */
+  .ps-rotulo-a5{max-width:148mm;}
+  .ps-rotulo-a5 .ps-header{padding:9px 12px;align-items:flex-start;flex-wrap:nowrap;}
+  .ps-rotulo-a5 .ps-header .ps-title{text-align:left;}
+  .ps-rotulo-a5 .ps-header .ps-title b{font-size:13.5px;line-height:1.25;}
+  .ps-rotulo-a5 .ps-header .ps-title small{font-size:8.5px;margin-top:1px;}
+  .ps-rotulo-a5 .ps-contact{font-size:8.5px;padding:4px 10px;}
+  .ps-rotulo-a5 .ps-body{padding:9px 12px 10px;font-size:9px;line-height:1.35;}
+  .ps-rotulo-a5 .ps-body h4{font-size:9px;margin:9px 0 4px;padding-bottom:3px;letter-spacing:.2px;}
+  .ps-rotulo-a5 .ps-body h4:first-child{margin-top:0;}
+
+  .ps-rotulo-a5 .ps-table{table-layout:fixed;width:100%;font-size:8.5px;margin-bottom:3px;}
+  .ps-rotulo-a5 .ps-table th{font-size:7px;padding:3px 2px;text-align:center;letter-spacing:0;line-height:1.2;}
+  .ps-rotulo-a5 .ps-table td{padding:3px 3px;vertical-align:top;
+    /* Um nome comprido ("Ácido acetilsalicílico 100 mg") tem de passar à
+       linha dentro da célula. Sem isto, com table-layout:fixed, transborda
+       por cima da coluna seguinte e fica ilegível à vista de toda a gente. */
+    /* `hyphens:auto` (a página é lang="pt") corta pela sílaba — "gastorres-
+       sistente" em vez de um corte cego a meio de uma letra qualquer. O
+       `overflow-wrap` fica como rede de segurança para palavras que nem
+       assim caibam. */
+    hyphens:auto;-webkit-hyphens:auto;overflow-wrap:anywhere;}
+  /* As larguras saíram de medir a folha, não de arredondar à vontade. As seis
+     colunas dos momentos do dia só levam um número ("1", "½"), por isso ficam
+     no mínimo que ainda deixa ler o cabeçalho (JJ, PA...) — e é daí que vem o
+     espaço para a coluna da forma farmacêutica, que é a que tem as palavras
+     mais compridas da folha ("comprimido gastrorresistente"). Com 8% essa
+     coluna partia "comprimido" em "comprimi/do" e esticava a linha para cinco
+     alturas de texto; é o que fazia a tabela parecer desalinhada. */
+  .ps-rotulo-a5 .ps-table col.c-nome{width:26%;}
+  .ps-rotulo-a5 .ps-table col.c-forma{width:13.5%;}
+  .ps-rotulo-a5 .ps-table col.c-slot{width:4.1%;}
+  .ps-rotulo-a5 .ps-table col.c-aspeto{width:9.3%;}
+  .ps-rotulo-a5 .ps-table col.c-cor{width:9%;}
+  .ps-rotulo-a5 .ps-table col.c-obs{width:17.4%;}
+  .ps-rotulo-a5 .ps-table td.td-slot{text-align:center;font-weight:800;font-size:9px;padding:3px 1px;}
+  .ps-rotulo-a5 .ps-table td.td-nome{font-weight:600;}
+
+  .ps-rotulo-a5 .ps-nota{font-size:8px;color:#7a6a3a;margin-top:6px;line-height:1.45;}
+  .ps-rotulo-a5 .ps-sign{margin-top:10px;gap:12px;}
+  .ps-rotulo-a5 .ps-sign-block{min-width:0;}
+  .ps-rotulo-a5 .ps-sign-block label{font-size:8px;margin-bottom:14px;}
+  .ps-rotulo-a5 .ps-sign-line{font-size:8.5px;padding-top:3px;}
+  .ps-rotulo-a5 .ps-foot{padding:6px 12px 8px;font-size:7.5px;margin-top:4px;}
+
+  @media print{
+    /* O cabeçalho da tabela repete-se em cada folha. Num rótulo com muita
+       medicação, a segunda folha sem cabeçalho seria uma grelha de números
+       sem nome em cima — e os números são as tomas. */
+    .ps-rotulo-a5 .ps-table thead{display:table-header-group;}
+    .ps-rotulo-a5 .ps-table tr{break-inside:avoid;page-break-inside:avoid;}
+  }
+
   @media screen {
     .print-only-holder{ position:fixed !important; left:-99999px !important; top:0 !important; }
   }
@@ -353,6 +415,13 @@
      fluxo normal do documento — a paginação passa a funcionar como em qualquer
      página HTML normal, com quantas páginas forem precisas. */
   @media print{
+    /* Ponto 64 — o fundo da aplicação é verde-claro e, com o
+       `print-color-adjust:exact` abaixo (que é preciso para o cabeçalho e as
+       tabelas saírem com cor), a impressora pintava-o em TODAS as folhas,
+       incluindo a parte vazia da última. Numa folha A5 de rótulo isso é
+       tinta gasta a cobrir papel em branco, a cada rótulo preparado. O papel
+       de uma impressão é branco. */
+    html, body{background:#fff !important;}
     body > *:not(.print-only-holder){display:none !important;}
     .print-only-holder{position:static !important; left:auto !important; top:auto !important;}
     .print-active{width:100%;margin:0;box-shadow:none !important;border-radius:0 !important;border:none !important;}
@@ -3355,18 +3424,28 @@ function reimprimirRotulo(id){
 function printRotulo(rotuloParaImprimir){
   const rotulo = rotuloParaImprimir || draftRotulo;
   const u = utenteById(rotulo.utenteId);
+  /* Ponto 64 — as larguras das colunas vão num <colgroup>, não nas células.
+     Com `table-layout:fixed` é a primeira linha que manda, e declarar aqui
+     garante que as duas tabelas (dentro e fora do dispositivo) saem com as
+     colunas alinhadas uma com a outra, mesmo que uma delas esteja vazia. */
+  const colgroup = `<colgroup><col class="c-nome"><col class="c-forma">${TIME_SLOTS.map(()=>'<col class="c-slot">').join('')}<col class="c-aspeto"><col class="c-cor"><col class="c-obs"></colgroup>`;
   function tbl(titulo, linhas){
-    return `<h4>${titulo}</h4><table class="ps-table"><thead><tr><th>Nome e dosagem</th><th>Forma</th>${TIME_SLOTS.map(s=>`<th>${s.key}</th>`).join('')}<th>Aspeto</th><th>Cor</th><th>Observações</th></tr></thead>
-    <tbody>${linhas.filter(r=>r.nome).map(r=>`<tr><td>${escapeHtml(r.nome)}</td><td>${escapeHtml(r.formaFarm)}</td>${TIME_SLOTS.map(s=>`<td style="text-align:center;">${escapeHtml(r.poso[s.key]||'')}</td>`).join('')}<td>${escapeHtml(r.forma)}</td><td>${escapeHtml(r.cor)}</td><td>${escapeHtml(r.obs)}</td></tr>`).join('') || '<tr><td colspan="11" style="color:#9C8A55;">Sem medicação nesta categoria.</td></tr>'}</tbody></table>`;
+    return `<h4>${titulo}</h4><table class="ps-table">${colgroup}<thead><tr><th style="text-align:left;">Nome e dosagem</th><th>Forma</th>${TIME_SLOTS.map(s=>`<th>${s.key}</th>`).join('')}<th>Aspeto</th><th>Cor</th><th>Obs.</th></tr></thead>
+    <tbody>${linhas.filter(r=>r.nome).map(r=>`<tr><td class="td-nome">${escapeHtml(r.nome)}</td><td>${escapeHtml(r.formaFarm)}</td>${TIME_SLOTS.map(s=>`<td class="td-slot">${escapeHtml(r.poso[s.key]||'')}</td>`).join('')}<td>${escapeHtml(r.forma)}</td><td>${escapeHtml(r.cor)}</td><td>${escapeHtml(r.obs)}</td></tr>`).join('') || `<tr><td colspan="${TIME_SLOTS.length+5}" style="color:#9C8A55;">Sem medicação nesta categoria.</td></tr>`}</tbody></table>`;
   }
+  /* Sem logótipo (pedido do Ivo, 04/10/2026): ocupava 176px de altura no
+     cabeçalho e, numa folha A5, era quase um quinto do papel gasto numa
+     imagem — num documento onde o que interessa é o nome do utente e as
+     tomas. O nome da farmácia continua a identificar a folha, por escrito,
+     na linha abaixo e no rodapé. */
   const html = `
-    <div class="print-sheet" id="printSheetInner">
-      <div class="ps-header"><img src="${FARMACIA_LOGO_SRC}" alt="logo"><div class="ps-title"><b>${escapeHtml(u?u.nome:'')}</b><small>${fmtDatePt(rotulo.dataInicio)} a ${fmtDatePt(rotulo.dataFim)} · ${escapeHtml(rotulo.tipo)}</small></div></div>
+    <div class="print-sheet ps-rotulo-a5" id="printSheetInner">
+      <div class="ps-header"><div class="ps-title"><b>${escapeHtml(u?u.nome:'')}</b><small>${fmtDatePt(rotulo.dataInicio)} a ${fmtDatePt(rotulo.dataFim)} · ${escapeHtml(rotulo.tipo)}</small></div></div>
       <div class="ps-contact">Preparação Individualizada da Medicação · ${escapeHtml(nomeFarmaciaAtual())}</div>
       <div class="ps-body">
         ${tbl('Terapêutica dentro do Dispositivo Organizador da Terapêutica', rotulo.linhasDentro)}
         ${tbl('Terapêutica fora do Dispositivo Organizador da Terapêutica', rotulo.linhasFora)}
-        <p style="font-size:11px;color:#9C8A55;margin-top:10px;">Observações: ${escapeHtml(rotulo.observacoes||'—')}<br>DOT preparado a ${fmtDatePt(rotulo.dataPreparacao)} por ${escapeHtml(rotulo.preparadoPor||'—')}</p>
+        <p class="ps-nota">Observações: ${escapeHtml(rotulo.observacoes||'—')}<br>DOT preparado a ${fmtDatePt(rotulo.dataPreparacao)} por ${escapeHtml(rotulo.preparadoPor||'—')}</p>
         <div class="ps-sign">
           <div class="ps-sign-block"><label>Preparado por</label><div class="ps-sign-line">${escapeHtml(rotulo.preparadoPor||'')}</div></div>
           <div class="ps-sign-block"><label>Supervisão farmacêutica</label><div class="ps-sign-line"></div></div>
@@ -3375,10 +3454,28 @@ function printRotulo(rotuloParaImprimir){
       <div class="ps-foot">Gerado pela aplicação de Gestão de PIM · ${escapeHtml(nomeFarmaciaAtual())} · Documento interno</div>
     </div>
   `;
-  printHTML(html);
+  printHTML(html, { pagina: 'A5 portrait', margem: '8mm' });
 }
 let PRINT_EM_CURSO = false;
-function printHTML(html){
+/**
+ * Ponto 64 — tamanho de folha por impressão.
+ *
+ * O `@page{margin:12mm}` da folha de estilos vale para o documento inteiro e
+ * não distingue quem está a imprimir: pôr lá "A5" passaria a ficha do utente,
+ * o calendário e as receitas todas para A5 também, sem ninguém pedir. Por
+ * isso a regra do A5 é escrita no momento, só enquanto a impressão decorre, e
+ * apagada a seguir — quem imprimir outra coisa a seguir volta ao de sempre.
+ */
+function aplicarRegraPagina(pagina, margem){
+  let tag = document.getElementById('printPageRule');
+  if(!tag){
+    tag = document.createElement('style');
+    tag.id = 'printPageRule';
+    document.head.appendChild(tag);
+  }
+  tag.textContent = pagina ? `@media print{ @page{ size:${pagina}; margin:${margem||'10mm'}; } }` : '';
+}
+function printHTML(html, opcoes){
   const holder = document.getElementById('printHolder');
   // Guarda de reentrância: se um 2º pedido de impressão chegar antes de o 1º
   // terminar (ex.: "Reimprimir" clicado duas vezes seguidas), ignora-se o 2º em
@@ -3387,7 +3484,8 @@ function printHTML(html){
   PRINT_EM_CURSO = true;
   holder.innerHTML = html;
   holder.classList.add('print-active');
-  window.addEventListener('afterprint', function cleanup(){ holder.classList.remove('print-active'); PRINT_EM_CURSO = false; window.removeEventListener('afterprint', cleanup); });
+  aplicarRegraPagina(opcoes && opcoes.pagina, opcoes && opcoes.margem);
+  window.addEventListener('afterprint', function cleanup(){ holder.classList.remove('print-active'); aplicarRegraPagina(null); PRINT_EM_CURSO = false; window.removeEventListener('afterprint', cleanup); });
   setTimeout(()=> window.print(), 80);
 }
 

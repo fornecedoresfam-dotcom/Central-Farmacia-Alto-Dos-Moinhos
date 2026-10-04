@@ -365,6 +365,31 @@ export function makeDataStore() {
       for (let i = totalPartsNovo; i < totalPartsAntigo; i++) fetchAutenticado(ASSET_URL(partKey(key, i)), { method: "DELETE" }).catch(() => {});
     },
 
+    /**
+     * Ponto 62 — a lista de TODOS os conteúdos pesados desta farmácia que
+     * existem no servidor (logótipo, documentos, anexos, receitas...), pela
+     * chave com que `getAsset` os sabe ler. Vem do servidor de propósito
+     * (ver netlify/functions/migracao.js): se fosse o cliente a adivinhar as
+     * chaves a partir do estado, cada módulo novo traria mais uma regra de
+     * nome para não esquecer, e o que se esquecesse ficava silenciosamente
+     * fora da cópia de segurança.
+     *
+     * Devolve `null` — e não um erro — quando o servidor ainda não tem esta
+     * rota (uma Central publicada antes deste ponto responde 404). Quem
+     * exporta pode assim continuar sem os ficheiros, avisando, em vez de
+     * falhar por inteiro.
+     */
+    async inventarioAssets() {
+      const res = await fetchAutenticado("/api/migracao/inventario", { headers: { Accept: "application/json" } });
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        const corpo = await res.json().catch(() => ({}));
+        throw new Error(corpo.error || `Não foi possível listar os conteúdos desta farmácia (HTTP ${res.status}).`);
+      }
+      const data = await res.json();
+      return Array.isArray(data.chaves) ? data.chaves : [];
+    },
+
     async deleteAsset(key) {
       try {
         await fetchAutenticado(ASSET_URL(key), { method: "DELETE" });

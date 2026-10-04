@@ -382,6 +382,28 @@ export function initModals(el, store, actions) {
   el.inputImportar.addEventListener("change", async (e) => {
     if (e.target.files.length) { await actions.importarDados(e.target.files[0]); e.target.value = ""; renderServicosGestao(""); renderCategoriasGestao(); popularNovaCategoriaParentSelect(); }
   });
+  // Ponto 62 — cópia completa, para mudar a Central de alojamento.
+  // Os elementos podem não existir numa página que use este módulo sem o
+  // separador Dados; daí o `if`.
+  if (el.btnExportarCompleta) {
+    el.btnExportarCompleta.addEventListener("click", async () => {
+      el.btnExportarCompleta.disabled = true;
+      try { await actions.exportarCopiaCompleta(); }
+      finally { el.btnExportarCompleta.disabled = false; }
+    });
+  }
+  if (el.inputImportarCompleta) {
+    el.inputImportarCompleta.addEventListener("change", async (e) => {
+      const ficheiro = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!ficheiro) return;
+      // Restaurar substitui a farmácia inteira — nunca sem uma confirmação
+      // explícita, do mesmo modo que "Repor tudo" logo abaixo.
+      if (!confirm("Restaurar esta cópia completa? Todos os dados desta conta (serviços, módulos e ficheiros) serão substituídos pelos da cópia. Esta ação não pode ser desfeita.")) return;
+      await actions.importarCopiaCompleta(ficheiro);
+    });
+  }
+
   el.btnResetTudo.addEventListener("click", async () => {
     if (confirm("Isto vai apagar TODOS os serviços, categorias e o logótipo desta central. Continuar?")) {
       await actions.resetTudo(); renderServicosGestao(""); renderCategoriasGestao(); popularNovaCategoriaParentSelect();

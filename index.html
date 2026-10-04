@@ -454,6 +454,23 @@
               <label class="btn-secondary" for="inputImportar" style="display:inline-flex;align-items:center;gap:8px;"><span class="icon" id="uploadIcon4"></span> <span data-i18n="common.importar">Importar</span></label>
               <input type="file" id="inputImportar" accept="application/json" style="display:none;">
             </div>
+            <!-- Ponto 62 — mudança de servidor. A exportação acima leva os
+                 serviços e as categorias; esta leva a farmácia inteira,
+                 incluindo o que está dentro de cada módulo e todos os
+                 ficheiros anexados. É a que atravessa dois alojamentos. -->
+            <div class="data-action-card">
+              <span class="icon" id="copiaCompletaIcon"></span>
+              <h4>Cópia completa (mudar de servidor)</h4>
+              <p>Descarrega <strong>tudo</strong> o que esta farmácia tem: serviços, categorias, configurações, os dados de todos os módulos (PIM, AUE, Manipulados, Documentos, Stocks, Devoluções) e os ficheiros anexados. Pode levar alguns minutos e dar um ficheiro grande.</p>
+              <button id="btnExportarCompleta" class="btn-secondary"><span class="icon" id="copiaCompletaIcon2"></span> Criar cópia completa</button>
+            </div>
+            <div class="data-action-card">
+              <span class="icon" id="restaurarCompletaIcon"></span>
+              <h4>Restaurar cópia completa</h4>
+              <p>Carrega aqui o ficheiro da cópia completa para esta Central ficar com os dados dessa farmácia. <strong>Substitui</strong> o que esta conta tiver agora.</p>
+              <label class="btn-secondary" for="inputImportarCompleta" style="display:inline-flex;align-items:center;gap:8px;"><span class="icon" id="restaurarCompletaIcon2"></span> Restaurar</label>
+              <input type="file" id="inputImportarCompleta" accept="application/json" style="display:none;">
+            </div>
             <div class="data-action-card">
               <span class="icon" id="alertIcon"></span>
               <h4 data-i18n="config.dados.repor_titulo">Repor tudo</h4>

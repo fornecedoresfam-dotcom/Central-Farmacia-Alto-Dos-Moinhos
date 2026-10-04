@@ -36,6 +36,16 @@ function stripTransient(s) {
 function chaveConteudoServico(id) { return `servico-conteudo:${id}`; }
 
 /**
+ * Ponto 62 — marca do ficheiro da cópia COMPLETA (estado inteiro + todos os
+ * ficheiros), a que serve para mudar a Central de alojamento. Está aqui, à
+ * vista, porque é o único contrato entre duas Centrais que não se conhecem:
+ * quem exporta escreve isto, quem importa recusa o ficheiro se não o
+ * encontrar — de outra forma, um .json qualquer passaria por cópia e
+ * sobrescreveria uma farmácia inteira com nada.
+ */
+const FORMATO_COPIA_COMPLETA = "central-hygea-copia-completa";
+
+/**
  * Cria um "serviço" de atalho (tipo "modulo") para cada módulo/ferramenta
  * interno que ainda não tenha um — abre o módulo dentro da própria Central
  * (ver `abrirEmNovaAba`), tal como um clique na barra lateral. Chamado uma
@@ -554,6 +564,148 @@ export function createActions(store, dataStore) {
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       bus.emit("toast:show", { type: "ok", msg: tc("toast.backup_exportado") });
+    },
+
+    /* -----------------------------------------------------------------------
+       Ponto 62 — cópia COMPLETA, para mudar de servidor.
+
+       A exportação acima (versão 4) nasceu para outra coisa: levar os
+       serviços e as categorias de uma Central para outra. Não leva nada do
+       que os módulos guardam — utentes do PIM, pedidos AUE, manipulados,
+       documentos, stocks, devoluções — nem os ficheiros que lá estão
+       anexados. Para mudar de alojamento isso não basta: o que não vier na
+       cópia desaparece.
+
+       Esta leva tudo: o estado inteiro da farmácia tal como o servidor o
+       tem, e todos os conteúdos pesados, pela lista que o próprio servidor
+       dá (ver `inventarioAssets`). Fica num único ficheiro .json que se
+       descarrega aqui e se carrega na Central nova — é só isso que atravessa
+       os dois alojamentos, sem precisar que um saiba do outro.
+       ----------------------------------------------------------------------- */
+    async exportarCopiaCompleta() {
+      bus.emit("toast:show", { type: "ok", msg: "A preparar a cópia completa… isto pode levar alguns minutos." });
+      try {
+        const estado = await dataStore.getEstadoCompleto();
+
+        let chaves = [];
+        let avisoFicheiros = null;
+        try {
+          const inventario = await dataStore.inventarioAssets();
+          if (inventario === null) {
+            avisoFicheiros = "Esta Central ainda não sabe listar os ficheiros guardados (precisa de ser publicada outra vez). A cópia leva todos os dados, mas não leva os documentos e anexos.";
+          } else {
+            chaves = inventario;
+          }
+        } catch (err) {
+          avisoFicheiros = "Não foi possível obter a lista de ficheiros: " + err.message;
+        }
+        if (avisoFicheiros) bus.emit("toast:show", { type: "warn", msg: avisoFicheiros });
+
+        const ficheiros = {};
+        const falhados = [];
+        for (let i = 0; i < chaves.length; i++) {
+          const chave = chaves[i];
+          try {
+            const conteudo = await dataStore.getAsset(chave);
+            if (conteudo != null) ficheiros[chave] = conteudo;
+          } catch (err) {
+            // Um ficheiro ilegível não pode interromper a cópia dos
+            // restantes — mas também não pode desaparecer em silêncio: vai
+            // nomeado no próprio ficheiro da cópia.
+            console.error(`Erro ao ler o conteúdo "${chave}" para a cópia completa:`, err);
+            falhados.push(chave);
+          }
+          if (chaves.length > 20 && i > 0 && i % 20 === 0) {
+            bus.emit("toast:show", { type: "ok", msg: `Cópia completa: ${i} de ${chaves.length} ficheiros…` });
+          }
+        }
+
+        const payload = {
+          formato: FORMATO_COPIA_COMPLETA,
+          versao: 1,
+          exportadoEm: new Date().toISOString(),
+          nomeFarmacia: store.getState().nomeFarmacia || estado?.config?.nomeFarmacia || "",
+          estado,
+          ficheiros,
+          ficheirosFalhados: falhados
+        };
+
+        const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `central-hygea-copia-completa-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+        const mb = (blob.size / 1024 / 1024).toFixed(1);
+        const resumo = `Cópia completa criada (${mb} MB, ${Object.keys(ficheiros).length} ficheiros).`;
+        bus.emit("toast:show", {
+          type: falhados.length ? "warn" : "ok",
+          msg: falhados.length ? `${resumo} ${falhados.length} ficheiro(s) não puderam ser lidos.` : resumo
+        });
+        return payload;
+      } catch (err) {
+        console.error("Erro ao criar a cópia completa:", err);
+        bus.emit("toast:show", { type: "err", msg: "Erro ao criar a cópia completa: " + err.message });
+        return null;
+      }
+    },
+
+    async importarCopiaCompleta(file) {
+      try {
+        const data = JSON.parse(await file.text());
+        if (!data || data.formato !== FORMATO_COPIA_COMPLETA || !data.estado || typeof data.estado !== "object") {
+          throw new Error("Este ficheiro não é uma cópia completa da Central.");
+        }
+
+        bus.emit("toast:show", { type: "ok", msg: "A importar a cópia completa… não feche esta janela." });
+
+        // Os ficheiros primeiro, o estado depois. Se algo falhar a meio, é
+        // melhor ter ficheiros a mais sem nada a apontar para eles do que um
+        // estado cheio de documentos a apontar para ficheiros que não foram
+        // carregados — o primeiro caso só ocupa espaço, o segundo parece
+        // dados perdidos a quem está a usar.
+        const ficheiros = data.ficheiros && typeof data.ficheiros === "object" ? data.ficheiros : {};
+        const chaves = Object.keys(ficheiros);
+        const falhados = [];
+        for (let i = 0; i < chaves.length; i++) {
+          const chave = chaves[i];
+          try { await dataStore.setAsset(chave, String(ficheiros[chave])); }
+          catch (err) {
+            console.error(`Erro ao importar o conteúdo "${chave}":`, err);
+            falhados.push(chave);
+          }
+          if (chaves.length > 20 && i > 0 && i % 20 === 0) {
+            bus.emit("toast:show", { type: "ok", msg: `A importar: ${i} de ${chaves.length} ficheiros…` });
+          }
+        }
+
+        // O histórico de cópias de segurança internas não atravessa a
+        // mudança (os instantâneos ficaram no servidor antigo). Deixar o
+        // manifesto entrar faria a Auto-manutenção mostrar pontos de
+        // restauro que já não existem — e clicar neles daria erro.
+        const estado = { ...data.estado };
+        if (estado.config && typeof estado.config === "object") {
+          const config = { ...estado.config };
+          delete config.manutBackups;
+          estado.config = config;
+        }
+
+        await dataStore.gravarEstadoCompleto(estado);
+
+        if (falhados.length) {
+          bus.emit("toast:show", { type: "warn", msg: `Cópia importada, mas ${falhados.length} ficheiro(s) falharam. A recarregar a Central…` });
+        } else {
+          bus.emit("toast:show", { type: "ok", msg: "Cópia completa importada. A recarregar a Central…" });
+        }
+        setTimeout(() => { if (typeof window !== "undefined") window.location.reload(); }, 1800);
+        return { ficheiros: chaves.length, falhados };
+      } catch (err) {
+        console.error("Erro ao importar a cópia completa:", err);
+        bus.emit("toast:show", { type: "err", msg: "Erro ao importar a cópia completa: " + err.message });
+        return null;
+      }
     },
 
     async importarDados(file) {
